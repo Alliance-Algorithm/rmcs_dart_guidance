@@ -14,7 +14,7 @@
 
 namespace rmcs_dart_guidance::manager {
 
-// LaunchPreparationTask — 将机构切换到发射准备态。
+// LaunchPreparationTask — 纯机械发射准备任务。
 //   NORMAL:
 //     1. 同步带下行到装填位
 //     2. 短暂等待机构稳定
@@ -45,8 +45,8 @@ public:
         : Task("launch_preparation", "滑块发射准备") {
 
         // 在任务内部定义相关物理参数，避免从外部传参，让结构更整洁
-        double torque_limit = 5.0;
-        double hold_torque = 1.0;                  // Wait 时的保持力矩
+        double torque_limit = 50.0;
+        double hold_torque = 5.0;                  // Wait 时的保持力矩
 
         auto make_belt_move_down = [&]() {
             return std::make_shared<BeltMoveAction>(
@@ -64,7 +64,7 @@ public:
                 10.0,                              // 设定速度
                 torque_limit,                      // 设定力矩限制
                 hold_torque,                       // 设定保持力矩
-                10000,                             // 超时帧数
+                20000,                             // 超时帧数
                 1.0,                               // 堵转速度阈值
                 0.5,                               // 堵转力矩阈值
                 100,                               // 堵转确认帧数
@@ -74,33 +74,33 @@ public:
 
         auto make_belt_wait = [&]() {
             return std::make_shared<DelayAction>(
-                "belt_wait", // 动作名称
-                50           // 等待帧数
+                "belt_wait",                       // 动作名称
+                50                                 // 等待帧数
             );
         };
 
         auto make_trigger_lock = [&]() {
             return std::make_shared<TriggerControlAction>(
-                trigger_lock_enable, // 扳机锁定使能（输出）
-                true,                // 锁定（true）
-                1000                 // 等待锁定完成帧数
+                trigger_lock_enable,               // 扳机锁定使能（输出）
+                true,                              // 锁定（true）
+                1000                               // 等待锁定完成帧数
             );
         };
 
-        auto make_filling_lift =
-            [&](const char* name, rmcs_msgs::DartSliderStatus command) {
-                return std::make_shared<FillingLiftAction>(
-                    name,                            // 动作名称
-                    lifting_command,                 // 升降指令（输出）
-                    command,                         // 指令状态
-                    lifting_left_vel_fb,             // 左升降电机速度反馈（输入）
-                    lifting_right_vel_fb,            // 右升降电机速度反馈（输入）
-                    lifting_stall_threshold,         // 堵转速度阈值
-                    lifting_stall_confirm_ticks,     // 堵转确认帧数
-                    lifting_stall_min_run_ticks,     // 最短运行帧数
-                    lifting_stall_timeout_ticks      // 超时帧数
-                );
-            };
+        auto make_filling_lift = [&](const char* name, rmcs_msgs::DartSliderStatus command,
+                                     bool require_motion_before_stall = true) {
+            return std::make_shared<FillingLiftAction>(
+                name,                              // 动作名称
+                lifting_command,                   // 升降指令（输出）
+                command,                           // 指令状态
+                lifting_left_vel_fb,               // 左升降电机速度反馈（输入）
+                lifting_right_vel_fb,              // 右升降电机速度反馈（输入）
+                lifting_stall_threshold,           // 堵转速度阈值
+                lifting_stall_confirm_ticks,       // 堵转确认帧数
+                lifting_stall_min_run_ticks,       // 最短运行帧数
+                lifting_stall_timeout_ticks,       // 超时帧数
+                require_motion_before_stall);
+        };
 
         auto make_belt_reset = [&]() {
             return std::make_shared<BeltMoveAction>(
@@ -115,10 +115,10 @@ public:
                 left_belt_torque,                  // 左同步带力矩（输入）
                 right_belt_torque,                 // 右同步带力矩（输入）
                 rmcs_msgs::DartSliderStatus::UP,   // 指令状态
-                20.0,                              // 设定速度
+                10.0,                              // 设定速度
                 torque_limit,                      // 设定力矩限制
                 hold_torque,                       // 设定保持力矩
-                5000,                              // 超时帧数
+                20000,                             // 超时帧数
                 0.5,                               // 堵转速度阈值
                 0.5,                               // 堵转力矩阈值
                 200,                               // 堵转确认帧数
@@ -127,7 +127,7 @@ public:
         };
 
         if (mode == Mode::FIRST_FILL) {
-            then(make_filling_lift("filling_lift_up", rmcs_msgs::DartSliderStatus::UP));
+            then(make_filling_lift("filling_lift_up", rmcs_msgs::DartSliderStatus::UP, false));
             then(make_belt_move_down());
             then(make_belt_wait());
             then(make_trigger_lock());
@@ -140,8 +140,7 @@ public:
 
         auto parallel_prepare =
             std::make_shared<ActionSet>("parallel_prepare", ActionSet::Policy::ALL_SUCCESS);
-        parallel_prepare
-            ->also(make_trigger_lock())
+        parallel_prepare->also(make_trigger_lock())
             .also(make_filling_lift("filling_lift_down", rmcs_msgs::DartSliderStatus::DOWN));
         then(parallel_prepare);
 

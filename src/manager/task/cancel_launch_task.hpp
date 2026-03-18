@@ -33,7 +33,7 @@ public:
         : Task("cancel_launch", "取消发射") {
 
         // 在任务内部定义相关物理参数，避免从外部传参，让结构更整洁
-        double down_velocity = 15.0;
+        double down_velocity = 10.0;
         double up_velocity = 10.0;
         double hold_torque = 1.0;                  // Wait 时的保持力矩
 
@@ -51,9 +51,9 @@ public:
                 right_belt_torque,                 // 右同步带力矩（输入）
                 rmcs_msgs::DartSliderStatus::DOWN, // 指令状态
                 down_velocity,                     // 设定速度
-                5.0,                               // 设定力矩限制
+                50.0,                              // 设定力矩限制
                 hold_torque,                       // 设定保持力矩
-                10000,                             // 超时帧数
+                20000,                             // 超时帧数
                 1.0,                               // 堵转速度阈值
                 0.5,                               // 堵转力矩阈值
                 100,                               // 堵转确认帧数
@@ -87,9 +87,9 @@ public:
                 right_belt_torque,                 // 右同步带力矩（输入）
                 rmcs_msgs::DartSliderStatus::UP,   // 指令状态
                 up_velocity,                       // 设定速度
-                1.0,                               // 设定力矩限制
+                25.0,                              // 设定力矩限制
                 hold_torque,                       // 设定保持力矩
-                10000,                             // 超时帧数
+                20000,                             // 超时帧数
                 1.0,                               // 堵转速度阈值
                 0.5,                               // 堵转力矩阈值
                 100,                               // 堵转确认帧数

@@ -48,6 +48,10 @@ file(GLOB_RECURSE PROJECT_SOURCE
   CONFIGURE_DEPENDS
   ${PROJECT_SOURCE_DIR}/src/*.cpp
   ${PROJECT_SOURCE_DIR}/src/*.cc
+)
+
+file(GLOB DEBUG_COMPONENT_SOURCE
+  CONFIGURE_DEPENDS
   ${PROJECT_SOURCE_DIR}/test/*.cpp
   ${PROJECT_SOURCE_DIR}/test/*.cc
 )
@@ -55,6 +59,7 @@ file(GLOB_RECURSE PROJECT_SOURCE
 add_library(
   ${PROJECT_NAME} SHARED
   ${PROJECT_SOURCE}
+  ${DEBUG_COMPONENT_SOURCE}
 )
 
 ament_target_dependencies(${PROJECT_NAME}
@@ -97,5 +102,47 @@ find_package(pluginlib REQUIRED)
 pluginlib_export_plugin_description_file(
   rmcs_executor plugins.xml
 )
+
+if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+
+  ament_add_gtest(
+    auto_aim_action_test
+    tests/auto_aim_action_test.cpp
+  )
+
+  ament_add_gtest(
+    launch_preparation_task_test
+    tests/launch_preparation_task_test.cpp
+  )
+
+  ament_add_gtest(
+    vision_assisted_launch_preparation_task_test
+    tests/vision_assisted_launch_preparation_task_test.cpp
+  )
+
+  ament_add_gtest(
+    dart_launch_sequence_test
+    tests/dart_launch_sequence_test.cpp
+  )
+
+  foreach(target
+      auto_aim_action_test
+      launch_preparation_task_test
+      vision_assisted_launch_preparation_task_test
+      dart_launch_sequence_test)
+    if(TARGET ${target})
+      target_include_directories(${target} PRIVATE
+        ${PROJECT_SOURCE_DIR}/src/
+        ${EIGEN3_INCLUDE_DIRS}
+        ${OpenCV_INCLUDE_DIRS}
+      )
+
+      ament_target_dependencies(${target}
+        rclcpp
+      )
+    endif()
+  endforeach()
+endif()
 
 ament_package()

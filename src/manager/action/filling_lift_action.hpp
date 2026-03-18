@@ -26,11 +26,14 @@ public:
     /// @param stall_confirm_ticks  连续低速帧数确认堵转（100 ticks = 0.1s @ 1kHz）
     /// @param stall_min_run_ticks  启动后最少运行帧数，避免启动瞬间误触发
     /// @param timeout_ticks        超时帧数，超时返回 FAILURE
+    /// @param require_motion_before_stall
+    ///                              是否要求先观测到电机进入运动，再允许低速堵转判定成功。
+    ///                              复位动作可关闭该选项，以便已经在端点时直接判定到位。
     FillingLiftAction(
         const char* name, rmcs_msgs::DartSliderStatus& lifting_command,
         rmcs_msgs::DartSliderStatus command, const double& left_vel_fb, const double& right_vel_fb,
         double stall_threshold, uint64_t stall_confirm_ticks, uint64_t stall_min_run_ticks,
-        uint64_t timeout_ticks = 5000)
+        uint64_t timeout_ticks = 5000, bool require_motion_before_stall = true)
         : IAction(name)
         , lifting_command_(lifting_command)
         , command_(command)
@@ -39,7 +42,8 @@ public:
         , stall_threshold_(stall_threshold)
         , stall_confirm_ticks_(stall_confirm_ticks)
         , stall_min_run_ticks_(stall_min_run_ticks)
-        , timeout_ticks_(timeout_ticks) {}
+        , timeout_ticks_(timeout_ticks)
+        , require_motion_before_stall_(require_motion_before_stall) {}
 
     void on_enter() override {
         lifting_command_ = command_;
@@ -57,7 +61,8 @@ public:
             has_started_motion_ = true;
         }
 
-        if (elapsed_ticks() < stall_min_run_ticks_ || !has_started_motion_)
+        if (elapsed_ticks() < stall_min_run_ticks_
+            || (require_motion_before_stall_ && !has_started_motion_))
             return ActionStatus::RUNNING;
 
         // 任一电机堵转即视为全部堵转（避免单侧堵转导致机构歪斜）
@@ -82,6 +87,7 @@ private:
     uint64_t stall_confirm_ticks_;
     uint64_t stall_min_run_ticks_;
     uint64_t timeout_ticks_;
+    bool require_motion_before_stall_{true};
     uint64_t stall_count_{0};
     bool has_started_motion_{false};
 };
