@@ -14,13 +14,25 @@
 
 namespace rmcs_dart_guidance::manager {
 
-// LaunchPreparationTask — 将机构切换到发射准备态：
-//   1. 同步带下行到装填位
-//   2. 短暂等待机构稳定
-//   3. 扳机锁定与填装升降下行并行执行
-//   4. 同步带上行复位
+// LaunchPreparationTask — 将机构切换到发射准备态。
+//   NORMAL:
+//     1. 同步带下行到装填位
+//     2. 短暂等待机构稳定
+//     3. 扳机锁定与填装升降下行并行执行
+//     4. 同步带上行复位
+//   FIRST_FILL:
+//     1. 填装升降上行
+//     2. 同步带下行到装填位
+//     3. 短暂等待机构稳定
+//     4. 扳机锁定
+//     5. 同步带上行复位
 class LaunchPreparationTask : public Task {
 public:
+    enum class Mode {
+        NORMAL,
+        FIRST_FILL,
+    };
+
     LaunchPreparationTask(
         rmcs_msgs::DartSliderStatus& belt_command, double& belt_target_velocity,
         double& belt_torque_limit, double& belt_hold_torque, bool& belt_wait_zero_velocity,
@@ -29,15 +41,15 @@ public:
         rmcs_msgs::DartSliderStatus& lifting_command, const double& lifting_left_vel_fb,
         const double& lifting_right_vel_fb, double lifting_stall_threshold,
         uint64_t lifting_stall_confirm_ticks, uint64_t lifting_stall_min_run_ticks,
-        uint64_t lifting_stall_timeout_ticks)
+        uint64_t lifting_stall_timeout_ticks, Mode mode = Mode::NORMAL)
         : Task("launch_preparation", "滑块发射准备") {
 
         // 在任务内部定义相关物理参数，避免从外部传参，让结构更整洁
         double torque_limit = 5.0;
         double hold_torque = 1.0;                  // Wait 时的保持力矩
 
-        then(
-            std::make_shared<BeltMoveAction>(
+        auto make_belt_move_down = [&]() {
+            return std::make_shared<BeltMoveAction>(
                 "belt_move_down",                  // 动作名称
                 belt_command,                      // 同步带目标状态（输出）
                 belt_target_velocity,              // 同步带目标速度（输出）
@@ -57,38 +69,41 @@ public:
                 0.5,                               // 堵转力矩阈值
                 100,                               // 堵转确认帧数
                 50,                                // 最短运行帧数
-                BeltMoveAction::ExitMode::WAIT_HOLD_TORQUE));
+                BeltMoveAction::ExitMode::WAIT_HOLD_TORQUE);
+        };
 
-        then(
-            std::make_shared<DelayAction>(
-                "belt_wait",                       // 动作名称
-                50                                 // 等待帧数
-                ));
+        auto make_belt_wait = [&]() {
+            return std::make_shared<DelayAction>(
+                "belt_wait", // 动作名称
+                50           // 等待帧数
+            );
+        };
 
-        auto parallel_prepare =
-            std::make_shared<ActionSet>("parallel_prepare", ActionSet::Policy::ALL_SUCCESS);
-        parallel_prepare
-            ->also(std::make_shared<TriggerControlAction>(
+        auto make_trigger_lock = [&]() {
+            return std::make_shared<TriggerControlAction>(
                 trigger_lock_enable, // 扳机锁定使能（输出）
                 true,                // 锁定（true）
                 1000                 // 等待锁定完成帧数
-                ))
-            .also(
-                std::make_shared<FillingLiftAction>(
-                    "filling_lift_down",                 // 动作名称
-                    lifting_command,                     // 升降指令（输出）
-                    rmcs_msgs::DartSliderStatus::DOWN,   // 指令状态
-                    lifting_left_vel_fb,                 // 左升降电机速度反馈（输入）
-                    lifting_right_vel_fb,                // 右升降电机速度反馈（输入）
-                    lifting_stall_threshold,             // 堵转速度阈值
-                    lifting_stall_confirm_ticks,         // 堵转确认帧数
-                    lifting_stall_min_run_ticks,         // 最短运行帧数
-                    lifting_stall_timeout_ticks          // 超时帧数
-                    ));
-        then(parallel_prepare);
+            );
+        };
 
-        then(
-            std::make_shared<BeltMoveAction>(
+        auto make_filling_lift =
+            [&](const char* name, rmcs_msgs::DartSliderStatus command) {
+                return std::make_shared<FillingLiftAction>(
+                    name,                            // 动作名称
+                    lifting_command,                 // 升降指令（输出）
+                    command,                         // 指令状态
+                    lifting_left_vel_fb,             // 左升降电机速度反馈（输入）
+                    lifting_right_vel_fb,            // 右升降电机速度反馈（输入）
+                    lifting_stall_threshold,         // 堵转速度阈值
+                    lifting_stall_confirm_ticks,     // 堵转确认帧数
+                    lifting_stall_min_run_ticks,     // 最短运行帧数
+                    lifting_stall_timeout_ticks      // 超时帧数
+                );
+            };
+
+        auto make_belt_reset = [&]() {
+            return std::make_shared<BeltMoveAction>(
                 "belt_reset",                      // 动作名称
                 belt_command,                      // 同步带目标状态（输出）
                 belt_target_velocity,              // 同步带目标速度（输出）
@@ -108,7 +123,29 @@ public:
                 0.5,                               // 堵转力矩阈值
                 200,                               // 堵转确认帧数
                 50,                                // 最短运行帧数
-                BeltMoveAction::ExitMode::WAIT_ZERO_VELOCITY));
+                BeltMoveAction::ExitMode::WAIT_ZERO_VELOCITY);
+        };
+
+        if (mode == Mode::FIRST_FILL) {
+            then(make_filling_lift("filling_lift_up", rmcs_msgs::DartSliderStatus::UP));
+            then(make_belt_move_down());
+            then(make_belt_wait());
+            then(make_trigger_lock());
+            then(make_belt_reset());
+            return;
+        }
+
+        then(make_belt_move_down());
+        then(make_belt_wait());
+
+        auto parallel_prepare =
+            std::make_shared<ActionSet>("parallel_prepare", ActionSet::Policy::ALL_SUCCESS);
+        parallel_prepare
+            ->also(make_trigger_lock())
+            .also(make_filling_lift("filling_lift_down", rmcs_msgs::DartSliderStatus::DOWN));
+        then(parallel_prepare);
+
+        then(make_belt_reset());
     }
 };
 

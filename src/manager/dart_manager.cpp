@@ -162,6 +162,8 @@ private:
             RCLCPP_WARN(logger_, "[DartManagerV2] all tasks cancelled");
         }
 
+        first_fill_pending_ = true;
+
         enter_belt_wait_zero_velocity_mode();
         *lifting_command_ = rmcs_msgs::DartSliderStatus::WAIT;
         *limiting_command_ = rmcs_msgs::DartLimitingServoStatus::LOCK;
@@ -178,7 +180,10 @@ private:
             RCLCPP_INFO(logger_, "[DartManagerV2] recovered from ERROR, state=IDLE");
             transition_to(State::IDLE);
         }
+
+        first_fill_pending_ = true;
         *limiting_command_ = rmcs_msgs::DartLimitingServoStatus::LOCK;
+
         // 无论 ERROR 还是 IDLE，都重新排队传送带复位
         submit_task(make_slider_init_task());
         RCLCPP_INFO(logger_, "[DartManagerV2] queued SliderInitTask for recovery");
@@ -265,6 +270,11 @@ private:
     // 任务工厂
     std::shared_ptr<Task> make_task(const std::string& cmd) {
         if (cmd == "launch_prepare" || cmd == "launch-prepare") {
+            auto launch_mode = first_fill_pending_
+                             ? LaunchPreparationTask::Mode::FIRST_FILL
+                             : LaunchPreparationTask::Mode::NORMAL;
+            first_fill_pending_ = false;
+
             return std::make_shared<LaunchPreparationTask>(
                 *belt_command_, *belt_target_velocity_, *belt_torque_limit_, *belt_hold_torque_,
                 *belt_wait_zero_velocity_,
@@ -274,10 +284,12 @@ private:
                 *lifting_command_,
                 *lifting_left_vel_fb_, *lifting_right_vel_fb_,
                 lifting_stall_threshold_, lifting_stall_confirm_ticks_,
-                lifting_stall_min_run_ticks_, lifting_stall_timeout_ticks_);
+                lifting_stall_min_run_ticks_, lifting_stall_timeout_ticks_, launch_mode);
         }
 
         if (cmd == "unload" || cmd == "cancel_launch") {
+            first_fill_pending_ = true;
+
             return std::make_shared<CancelLaunchTask>(
                 *belt_command_, *belt_target_velocity_, *belt_torque_limit_, *belt_hold_torque_,
                 *belt_wait_zero_velocity_,
@@ -367,6 +379,7 @@ private:
 
     std::shared_ptr<Task>             current_task_;
     std::deque<std::shared_ptr<Task>> task_queue_;
+    bool first_fill_pending_{true};
     bool first_tick_of_task_{true};
 };
 
