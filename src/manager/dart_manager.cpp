@@ -305,9 +305,22 @@ private:
             current_task_->on_exit();
             RCLCPP_INFO(
                 logger_, "[DartManagerV2] task '%s' SUCCESS", completed_task_name.c_str());
-            if (launch_prepare_enable_visual_assist_ && completed_task_name == "fire") {
-                advance_dart_sequence_after_fire();
+
+            // 处理 fire 任务完成
+            if (completed_task_name == "fire") {
+                fire_count_++;
+                RCLCPP_INFO(logger_, "[DartManagerV2] fire completed, fire_count=%u", fire_count_);
+                if (launch_prepare_enable_visual_assist_) {
+                    advance_dart_sequence_after_fire();
+                }
             }
+
+            // 处理 cancel_launch 任务完成 - 重置 fire_count
+            if (completed_task_name == "cancel_launch") {
+                fire_count_ = 0;
+                RCLCPP_INFO(logger_, "[DartManagerV2] cancel_launch completed, fire_count reset to 0");
+            }
+
             current_task_.reset();
             transition_to(State::IDLE);
 
