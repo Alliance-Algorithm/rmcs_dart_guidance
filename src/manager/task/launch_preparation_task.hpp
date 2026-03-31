@@ -125,27 +125,27 @@ public:
         // 步骤4：传送带上行到机械限位（速度控制 + 堵转检测）
         then(
             std::make_shared<BeltMoveAction>(
-                "belt_reset_up",                              // 动作名称
-                belt_command,                                 // 同步带目标状态（输出）
-                belt_target_velocity,                         // 同步带目标速度（输出）
-                belt_torque_limit,                            // 同步带力矩限制（输出）
-                belt_hold_torque,                             // 同步带保持力矩（输出）
-                belt_wait_zero_velocity,                      // Wait 时使用零速闭环还是保留力矩
-                left_belt_velocity,                           // 左同步带反馈（输入）
-                right_belt_velocity,                          // 右同步带反馈（输入）
-                left_belt_torque,                             // 左同步带力矩（输入）
-                right_belt_torque,                            // 右同步带力矩（输出）
-                rmcs_msgs::DartSliderStatus::UP,              // 指令状态
-                15,                                           // 设定速度（rad/s）
-                2.5,                                          // 设定力矩限制（N⋅m）
-                0.5,                                          // 设定保持力矩（N⋅m）
-                5000,                                         // 超时帧数
-                0.5,                                          // 堵转速度阈值（rad/s）
-                0.8,                                          // 堵转力矩阈值（N⋅m）
-                100,                                          // 堵转确认帧数
-                50,                                           // 最短运行帧数
+                "belt_reset_up",                             // 动作名称
+                belt_command,                                // 同步带目标状态（输出）
+                belt_target_velocity,                        // 同步带目标速度（输出）
+                belt_torque_limit,                           // 同步带力矩限制（输出）
+                belt_hold_torque,                            // 同步带保持力矩（输出）
+                belt_wait_zero_velocity,                     // Wait 时使用零速闭环还是保留力矩
+                left_belt_velocity,                          // 左同步带反馈（输入）
+                right_belt_velocity,                         // 右同步带反馈（输入）
+                left_belt_torque,                            // 左同步带力矩（输入）
+                right_belt_torque,                           // 右同步带力矩（输出）
+                rmcs_msgs::DartSliderStatus::UP,             // 指令状态
+                15,                                          // 设定速度（rad/s）
+                2.5,                                         // 设定力矩限制（N⋅m）
+                0.5,                                         // 设定保持力矩（N⋅m）
+                5000,                                        // 超时帧数
+                0.5,                                         // 堵转速度阈值（rad/s）
+                0.8,                                         // 堵转力矩阈值（N⋅m）
+                100,                                         // 堵转确认帧数
+                50,                                          // 最短运行帧数
                 BeltMoveAction::ExitMode::WAIT_ZERO_VELOCITY, // 退出模式
-                true));                                       // 超时也返回 SUCCESS
+                false));                                     // 超时返回失败
 
         then(std::make_shared<DelayAction>("stabilize_wait", 50));
 

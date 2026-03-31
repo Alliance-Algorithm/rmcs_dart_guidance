@@ -41,9 +41,9 @@ class DartManagerV2
     , public rclcpp::Node {
 public:
     enum class State : uint8_t {
-        IDLE    = 0,
+        IDLE = 0,
         RUNNING = 1,
-        ERROR   = 2,
+        ERROR = 2,
     };
 
     DartManagerV2()
@@ -52,24 +52,25 @@ public:
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
         , logger_(get_logger()) {
 
-        register_input("/dart/drive_belt/left/velocity",  left_belt_velocity_);
+        register_input("/dart/drive_belt/left/velocity", left_belt_velocity_);
         register_input("/dart/drive_belt/right/velocity", right_belt_velocity_);
-        register_input("/dart/drive_belt/left/torque",   left_belt_torque_);
-        register_input("/dart/drive_belt/right/torque",  right_belt_torque_);
-        register_input("/dart/drive_belt/left/angle",    left_belt_angle_);
-        register_input("/dart/drive_belt/right/angle",   right_belt_angle_);
-        register_input("/dart/lifting_left/velocity",    lifting_left_vel_fb_);
-        register_input("/dart/lifting_right/velocity",   lifting_right_vel_fb_);
+        register_input("/dart/drive_belt/left/torque", left_belt_torque_);
+        register_input("/dart/drive_belt/right/torque", right_belt_torque_);
+        register_input("/dart/drive_belt/left/angle", left_belt_angle_);
+        register_input("/dart/drive_belt/right/angle", right_belt_angle_);
+        register_input("/dart/lifting_left/velocity", lifting_left_vel_fb_);
+        register_input("/dart/lifting_right/velocity", lifting_right_vel_fb_);
 
-        register_input("/dart/manager/command",     remote_command_input_, false);
-        register_input("/dart/manager/web_command", web_command_input_,    false);
+        register_input("/dart/manager/command", remote_command_input_, false);
+        register_input("/dart/manager/web_command", web_command_input_, false);
 
-        register_input("/remote/joystick/left",  joystick_left_,  false);
+        register_input("/remote/joystick/left", joystick_left_, false);
         register_input("/remote/joystick/right", joystick_right_, false);
         register_input("/dart_guidance/camera/target_position", target_position_input_, false);
         register_input("/dart_guidance/tracker/tracking", target_tracking_input_, false);
 
-        register_output("/dart/manager/belt/command", belt_command_, rmcs_msgs::DartSliderStatus::WAIT);
+        register_output(
+            "/dart/manager/belt/command", belt_command_, rmcs_msgs::DartSliderStatus::WAIT);
         register_output("/dart/manager/belt/target_velocity", belt_target_velocity_, 0.0);
         register_output("/dart/manager/belt/torque_limit", belt_torque_limit_, 0.0);
         register_output("/dart/manager/belt/hold_torque", belt_hold_torque_, 0.0);
@@ -77,7 +78,8 @@ public:
         register_output("/dart/manager/belt/zero_calibration", belt_zero_calibration_, false);
         register_output("/dart/manager/trigger/lock_enable", trigger_lock_enable_, false);
 
-        register_output("/pitch/control/velocity", yaw_pitch_control_velocity_, Eigen::Vector2d::Zero());
+        register_output(
+            "/pitch/control/velocity", yaw_pitch_control_velocity_, Eigen::Vector2d::Zero());
         register_output("/force/control/velocity", force_control_velocity_, 0.0);
         register_output("/dart/manager/aim/ready", aim_ready_, false);
         register_output(
@@ -91,8 +93,7 @@ public:
 
         // 升降指令总线
         register_output(
-            "/dart/manager/lifting/command", lifting_command_,
-            rmcs_msgs::DartSliderStatus::WAIT);
+            "/dart/manager/lifting/command", lifting_command_, rmcs_msgs::DartSliderStatus::WAIT);
         register_output(
             "/dart/manager/limiting/command", limiting_command_,
             rmcs_msgs::DartLimitingServoStatus::LOCK);
@@ -115,10 +116,10 @@ public:
             load_auto_aim_configuration();
         }
 
-        limiting_fill_ticks_  = (uint64_t)get_parameter("limiting_fill_ticks").as_int();
+        limiting_fill_ticks_ = (uint64_t)get_parameter("limiting_fill_ticks").as_int();
 
-        belt_down_distance_ = get_parameter("belt_down_distance").as_double();  // m
-        belt_pulley_radius_ = get_parameter("belt_pulley_radius").as_double();  // m
+        belt_down_distance_ = get_parameter("belt_down_distance").as_double(); // m
+        belt_pulley_radius_ = get_parameter("belt_pulley_radius").as_double(); // m
 
         // 传送带速度和扭矩限制参数（集中管理）
         try {
@@ -168,7 +169,7 @@ public:
             belt_prepare_down_ramp_timeout_ticks_ = 2000;
         }
 
-        lifting_stall_threshold_    = get_parameter("lifting_stall_threshold").as_double();
+        lifting_stall_threshold_ = get_parameter("lifting_stall_threshold").as_double();
         lifting_stall_confirm_ticks_ =
             (uint64_t)get_parameter("lifting_stall_confirm_ticks").as_int();
         lifting_stall_min_run_ticks_ =
@@ -189,9 +190,9 @@ public:
         poll_command();
 
         switch (state_) {
-        case State::IDLE:    dispatch_next_task(); break;
-        case State::RUNNING: tick_current_task();  break;
-        case State::ERROR:   break;
+        case State::IDLE: dispatch_next_task(); break;
+        case State::RUNNING: tick_current_task(); break;
+        case State::ERROR: break;
         }
     }
 
@@ -303,8 +304,7 @@ private:
         if (status == ActionStatus::SUCCESS) {
             const std::string completed_task_name = current_task_->name();
             current_task_->on_exit();
-            RCLCPP_INFO(
-                logger_, "[DartManagerV2] task '%s' SUCCESS", completed_task_name.c_str());
+            RCLCPP_INFO(logger_, "[DartManagerV2] task '%s' SUCCESS", completed_task_name.c_str());
 
             // 处理 fire 任务完成
             if (completed_task_name == "fire") {
@@ -318,7 +318,8 @@ private:
             // 处理 cancel_launch 任务完成 - 重置 fire_count
             if (completed_task_name == "cancel_launch") {
                 fire_count_ = 0;
-                RCLCPP_INFO(logger_, "[DartManagerV2] cancel_launch completed, fire_count reset to 0");
+                RCLCPP_INFO(
+                    logger_, "[DartManagerV2] cancel_launch completed, fire_count reset to 0");
             }
 
             current_task_.reset();
@@ -355,7 +356,7 @@ private:
     }
 
     void transition_to(State new_state) {
-        state_             = new_state;
+        state_ = new_state;
         first_tick_of_task_ = true;
 
         if (state_pub_) {
@@ -372,8 +373,7 @@ private:
             current_target_position_ = cv::Point2i(-1, -1);
         }
 
-        current_target_tracking_ =
-            target_tracking_input_.ready() ? *target_tracking_input_ : false;
+        current_target_tracking_ = target_tracking_input_.ready() ? *target_tracking_input_ : false;
     }
 
     double get_numeric_parameter_or_throw(const std::string& name) const {
@@ -410,7 +410,7 @@ private:
         switch (parameter.get_type()) {
         case rclcpp::PARAMETER_DOUBLE_ARRAY: return parameter.as_double_array();
         case rclcpp::PARAMETER_INTEGER_ARRAY: {
-            const auto values = parameter.as_integer_array();
+            const auto& values = parameter.as_integer_array();
             std::vector<double> result;
             result.reserve(values.size());
             for (const auto value : values) {
@@ -443,10 +443,9 @@ private:
             has_parameter("aim_ready_exit_deadband_px")
                 ? get_vector2_parameter_or_throw("aim_ready_exit_deadband_px")
                 : Eigen::Vector2d::Constant(5.0);
-        aim_accept_deadband_px_ =
-            has_parameter("aim_accept_deadband_px")
-                ? get_vector2_parameter_or_throw("aim_accept_deadband_px")
-                : aim_ready_exit_deadband_px_;
+        aim_accept_deadband_px_ = has_parameter("aim_accept_deadband_px")
+                                    ? get_vector2_parameter_or_throw("aim_accept_deadband_px")
+                                    : aim_ready_exit_deadband_px_;
         aim_yaw_gain_ = get_numeric_parameter_or_throw("aim_yaw_gain");
         aim_pitch_gain_ = get_numeric_parameter_or_throw("aim_pitch_gain");
         aim_ready_confirm_ticks_ = has_parameter("aim_ready_confirm_ticks")
@@ -500,16 +499,16 @@ private:
     }
 
     void sync_current_dart_outputs() {
-        *aim_current_dart_index_ =
-            launch_prepare_enable_visual_assist_ ? dart_launch_sequence_.current_dart_index_u8()
-                                                 : static_cast<uint8_t>(0);
+        *aim_current_dart_index_ = launch_prepare_enable_visual_assist_
+                                     ? dart_launch_sequence_.current_dart_index_u8()
+                                     : static_cast<uint8_t>(0);
         auto_aim_feedback_.set_desired_target_px(current_desired_target_px());
     }
 
     void clear_auto_aim_feedback() {
-        *aim_current_dart_index_ =
-            launch_prepare_enable_visual_assist_ ? dart_launch_sequence_.current_dart_index_u8()
-                                                 : static_cast<uint8_t>(0);
+        *aim_current_dart_index_ = launch_prepare_enable_visual_assist_
+                                     ? dart_launch_sequence_.current_dart_index_u8()
+                                     : static_cast<uint8_t>(0);
         auto_aim_feedback_.reset(current_desired_target_px());
     }
 
@@ -529,8 +528,7 @@ private:
     }
 
     void prepare_outputs_for_task(const Task& task) {
-        if (
-            task.name() == "launch_preparation" || task.name() == "fire"
+        if (task.name() == "launch_preparation" || task.name() == "fire"
             || task.name() == "cancel_launch" || task.name() == "slider_init"
             || task.name() == "manual_angle" || task.name() == "manual_force") {
             clear_auto_aim_feedback();
@@ -539,12 +537,9 @@ private:
 
     std::shared_ptr<Task> make_slider_init_task() {
         return std::make_shared<SliderInitTask>(
-            *belt_command_,
-            *belt_target_velocity_, *belt_torque_limit_, *belt_hold_torque_,
-            *belt_wait_zero_velocity_,
-            *left_belt_velocity_,    *right_belt_velocity_,
-            *left_belt_torque_,      *right_belt_torque_,
-            *belt_zero_calibration_);
+            *belt_command_, *belt_target_velocity_, *belt_torque_limit_, *belt_hold_torque_,
+            *belt_wait_zero_velocity_, *left_belt_velocity_, *right_belt_velocity_,
+            *left_belt_torque_, *right_belt_torque_, *belt_zero_calibration_);
     }
 
     // 任务工厂
@@ -556,15 +551,20 @@ private:
             bool require_lifting_down = (fire_count_ > 0);
 
             // 打印角度反馈状态
-            RCLCPP_INFO(logger_, "[DartManager] Creating launch_prepare task, fire_count=%u", fire_count_);
+            RCLCPP_INFO(
+                logger_, "[DartManager] Creating launch_prepare task, fire_count=%u", fire_count_);
             if (left_belt_angle_.ready() && right_belt_angle_.ready()) {
-                RCLCPP_INFO(logger_, "[DartManager] Belt angles: left=%.4f, right=%.4f",
-                            *left_belt_angle_, *right_belt_angle_);
+                RCLCPP_INFO(
+                    logger_, "[DartManager] Belt angles: left=%.4f, right=%.4f", *left_belt_angle_,
+                    *right_belt_angle_);
             } else {
                 RCLCPP_WARN(logger_, "[DartManager] Belt angle feedback NOT READY!");
             }
-            RCLCPP_INFO(logger_, "[DartManager] Belt params: down_distance=%.4f m, pulley_radius=%.4f m, down_velocity=%.2f rad/s",
-                        belt_down_distance_, belt_pulley_radius_, down_velocity);
+            RCLCPP_INFO(
+                logger_,
+                "[DartManager] Belt params: down_distance=%.4f m, pulley_radius=%.4f m, "
+                "down_velocity=%.2f rad/s",
+                belt_down_distance_, belt_pulley_radius_, down_velocity);
 
             return std::make_shared<LaunchPreparationTask>(
                 *belt_command_, *belt_target_velocity_, *belt_torque_limit_, *belt_hold_torque_,
@@ -595,30 +595,28 @@ private:
 
         if (cmd == "fire") {
             return std::make_shared<FireAndPreloadTask>(
-                *trigger_lock_enable_,
-                *lifting_command_,
-                *lifting_left_vel_fb_, *lifting_right_vel_fb_,
-                lifting_stall_threshold_, lifting_stall_confirm_ticks_,
-                lifting_stall_min_run_ticks_, lifting_stall_timeout_ticks_,
-                *limiting_command_, limiting_fill_ticks_);
+                *trigger_lock_enable_, *lifting_command_, *lifting_left_vel_fb_,
+                *lifting_right_vel_fb_, lifting_stall_threshold_, lifting_stall_confirm_ticks_,
+                lifting_stall_min_run_ticks_, lifting_stall_timeout_ticks_, *limiting_command_,
+                limiting_fill_ticks_);
         }
 
         if (cmd == "manual_angle") {
             auto task = std::make_shared<Task>("manual_angle", "手动 yaw/pitch 调整");
-            task->then(std::make_shared<DartManualAngleControlAction>(
-                auto_aim_feedback_.yaw_pitch_control_velocity()[0],
-                auto_aim_feedback_.yaw_pitch_control_velocity()[1], *joystick_left_,
-                *joystick_right_, max_transform_rate_));
+            task->then(
+                std::make_shared<DartManualAngleControlAction>(
+                    auto_aim_feedback_.yaw_pitch_control_velocity()[0],
+                    auto_aim_feedback_.yaw_pitch_control_velocity()[1], *joystick_left_,
+                    *joystick_right_, max_transform_rate_));
             return task;
         }
 
         if (cmd == "manual_force") {
             auto task = std::make_shared<Task>("manual_force", "手动力丝杆速度调整");
-            task->then(std::make_shared<DartManualForceControlAction>(
-                *force_control_velocity_,
-                *joystick_right_,
-                max_transform_rate_,
-                manual_force_scale_));
+            task->then(
+                std::make_shared<DartManualForceControlAction>(
+                    *force_control_velocity_, *joystick_right_, max_transform_rate_,
+                    manual_force_scale_));
             return task;
         }
         return nullptr;
@@ -635,8 +633,8 @@ private:
 
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<Eigen::Vector2d> joystick_right_;
-    InputInterface<cv::Point2i>     target_position_input_;
-    InputInterface<bool>            target_tracking_input_;
+    InputInterface<cv::Point2i> target_position_input_;
+    InputInterface<bool> target_tracking_input_;
 
     // 升降速度反馈（FillingLiftAction 堵转检测用）
     InputInterface<double> lifting_left_vel_fb_;
@@ -646,27 +644,27 @@ private:
     OutputInterface<double> belt_target_velocity_;
     OutputInterface<double> belt_torque_limit_;
     OutputInterface<double> belt_hold_torque_;
-    OutputInterface<bool>   belt_wait_zero_velocity_;
-    OutputInterface<bool>   belt_zero_calibration_;
-    OutputInterface<bool>   trigger_lock_enable_;
+    OutputInterface<bool> belt_wait_zero_velocity_;
+    OutputInterface<bool> belt_zero_calibration_;
+    OutputInterface<bool> trigger_lock_enable_;
 
     OutputInterface<Eigen::Vector2d> yaw_pitch_control_velocity_;
-    OutputInterface<double>          force_control_velocity_;
-    OutputInterface<bool>            aim_ready_;
-    OutputInterface<uint8_t>         aim_current_dart_index_;
+    OutputInterface<double> force_control_velocity_;
+    OutputInterface<bool> aim_ready_;
+    OutputInterface<uint8_t> aim_current_dart_index_;
     OutputInterface<Eigen::Vector2d> aim_error_px_;
     OutputInterface<Eigen::Vector2d> aim_desired_target_px_;
 
     OutputInterface<rmcs_msgs::DartSliderStatus> lifting_command_;
     OutputInterface<rmcs_msgs::DartLimitingServoStatus> limiting_command_;
 
-    double   max_transform_rate_{500.0};
-    double   manual_force_scale_{5.0};
-    double   auto_aim_max_transform_rate_{500.0};
+    double max_transform_rate_{500.0};
+    double manual_force_scale_{5.0};
+    double auto_aim_max_transform_rate_{500.0};
     uint64_t limiting_fill_ticks_{500};
 
-    double belt_down_distance_{0.0};  // m
-    double belt_pulley_radius_{0.0};  // m
+    double belt_down_distance_{0.0};                         // m
+    double belt_pulley_radius_{0.0};                         // m
 
     double belt_prepare_down_velocity_first_{5.0};           // rad/s
     double belt_prepare_down_velocity_{10.0};                // rad/s
@@ -677,7 +675,7 @@ private:
     uint64_t belt_prepare_down_zero_confirm_ticks_{60};      // ticks
     uint64_t belt_prepare_down_ramp_timeout_ticks_{2000};    // ticks
 
-    double   lifting_stall_threshold_{0.5};
+    double lifting_stall_threshold_{0.5};
     uint64_t lifting_stall_confirm_ticks_{100};
     uint64_t lifting_stall_min_run_ticks_{500};
     uint64_t lifting_stall_timeout_ticks_{5000};
@@ -697,16 +695,16 @@ private:
 
     InputInterface<std::string> remote_command_input_;
     InputInterface<std::string> web_command_input_;
-    std::string                 last_command_;
+    std::string last_command_;
 
     rclcpp::Publisher<std_msgs::msg::UInt8>::SharedPtr state_pub_;
 
     State state_{State::IDLE};
 
-    std::shared_ptr<Task>             current_task_;
+    std::shared_ptr<Task> current_task_;
     std::deque<std::shared_ptr<Task>> task_queue_;
     bool first_fill_pending_{true};
-    uint32_t fire_count_{0};  // 当前轮次已完成发射数
+    uint32_t fire_count_{0};                                 // 当前轮次已完成发射数
     bool first_tick_of_task_{true};
 };
 

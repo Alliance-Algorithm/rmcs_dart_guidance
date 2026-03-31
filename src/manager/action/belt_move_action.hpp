@@ -27,7 +27,8 @@ public:
         uint64_t timeout_ticks, double stall_velocity_threshold = 1.0,
         double stall_torque_threshold = 0.5,
         uint64_t stall_confirm_ticks = 20, uint64_t min_running_ticks = 50,
-        ExitMode exit_mode = ExitMode::WAIT_HOLD_TORQUE)
+        ExitMode exit_mode = ExitMode::WAIT_HOLD_TORQUE,
+        bool timeout_returns_success = false)
         : IAction(std::move(name))
         , belt_command_(belt_command)
         , belt_target_velocity_(belt_target_velocity)
@@ -47,7 +48,8 @@ public:
         , stall_torque_threshold_(stall_torque_threshold)
         , stall_confirm_ticks_(stall_confirm_ticks)
         , min_running_ticks_(min_running_ticks)
-        , exit_mode_(exit_mode) {}
+        , exit_mode_(exit_mode)
+        , timeout_returns_success_(timeout_returns_success) {}
 
     void on_enter() override {
         belt_command_ = command_;
@@ -59,7 +61,7 @@ public:
 
     ActionStatus update() override {
         if (elapsed_ticks() >= timeout_ticks_) {
-            return ActionStatus::FAILURE;
+            return timeout_returns_success_ ? ActionStatus::SUCCESS : ActionStatus::FAILURE;
         }
 
         if (elapsed_ticks() > min_running_ticks_) {
@@ -115,6 +117,7 @@ private:
     uint64_t stall_confirm_ticks_;
     uint64_t min_running_ticks_;
     ExitMode exit_mode_;
+    bool timeout_returns_success_;
 
     uint64_t stall_counter_{0};
 };

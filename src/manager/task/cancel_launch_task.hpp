@@ -113,7 +113,8 @@ public:
                 0.5,                                            // 堵转力矩阈值
                 100,                                            // 堵转确认帧数
                 50,                                             // 最短运行帧数
-                BeltMoveAction::ExitMode::WAIT_ZERO_VELOCITY)); // 退出模式
+                BeltMoveAction::ExitMode::WAIT_ZERO_VELOCITY,   // 退出模式
+                false));                                        // 超时返回失败
 
         // 步骤5：填装升降上行回到初始位
         then(
