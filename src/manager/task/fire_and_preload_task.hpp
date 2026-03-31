@@ -1,7 +1,7 @@
 #pragma once
 
-#include "manager/action/filling_limit_servo_action.hpp"
 #include "manager/action/filling_lift_action.hpp"
+#include "manager/action/filling_limit_servo_action.hpp"
 #include "manager/action/trigger_control_action.hpp"
 #include "manager/task/task.hpp"
 
@@ -29,30 +29,30 @@ public:
 
         then(
             std::make_shared<TriggerControlAction>(
-                trigger_lock_enable, // 扳机锁定使能（输出）
-                false,               // 解锁（false）
-                1000                 // 等待释放完成帧数
+                trigger_lock_enable,                      // 扳机锁定使能（输出）
+                false,                                    // 解锁（false）
+                1000                                      // 等待释放完成帧数
                 ));
 
         then(
             std::make_shared<FillingLiftAction>(
-                "filling_lift_up",               // 动作名称
-                lifting_command,                 // 升降指令（输出）
-                rmcs_msgs::DartSliderStatus::UP, // 指令状态
-                lifting_left_vel_fb,             // 左升降电机速度反馈（输入）
-                lifting_right_vel_fb,            // 右升降电机速度反馈（输入）
-                lifting_stall_threshold,         // 堵转速度阈值
-                lifting_stall_confirm_ticks,     // 堵转确认帧数
-                lifting_stall_min_run_ticks,     // 最短运行帧数
-                lifting_stall_timeout_ticks      // 超时帧数
+                "filling_lift_up",                        // 动作名称
+                lifting_command,                          // 升降指令（输出）
+                rmcs_msgs::DartSliderStatus::UP,          // 指令状态
+                lifting_left_vel_fb,                      // 左升降电机速度反馈（输入）
+                lifting_right_vel_fb,                     // 右升降电机速度反馈（输入）
+                lifting_stall_threshold,                  // 堵转速度阈值
+                lifting_stall_confirm_ticks,              // 堵转确认帧数
+                lifting_stall_min_run_ticks,              // 最短运行帧数
+                lifting_stall_timeout_ticks               // 超时帧数
                 ));
 
         then(
             std::make_shared<FillingLimitServoAction>(
-                limiting_command,                        // 限位舵机状态（输出）
+                limiting_command,                         // 限位舵机状态（输出）
                 rmcs_msgs::DartLimitingServoStatus::FREE, // 先释放
                 rmcs_msgs::DartLimitingServoStatus::LOCK, // 再锁回
-                preload_fill_ticks                      // 预装填持续帧数
+                preload_fill_ticks                        // 预装填持续帧数
                 ));
     }
 };

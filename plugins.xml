@@ -20,9 +20,6 @@
   <class type="rmcs_dart_guidance::manager::WebCommandBridge" base_class_type="rmcs_executor::Component">
     <description>Handles WebUI ROS communication and heartbeat</description>
   </class>
-  <class type="rmcs_dart_guidance::manager::DartManagerV2" base_class_type="rmcs_executor::Component">
-    <description>Dart task manager V2: 4-shot group counting with lifting and limiting servo control.</description>
-  </class>
   <class type="rmcs_dart_guidance::manager::DartManagerForFillingTest" base_class_type="rmcs_executor::Component">
     <description>Dart task manager ForFillingTest: 4-shot group counting with lifting and limiting servo control.</description>
   </class>

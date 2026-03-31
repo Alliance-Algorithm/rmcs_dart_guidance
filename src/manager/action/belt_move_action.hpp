@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <string>
 
-#include <rmcs_msgs/dart_slider_status.hpp>
+#include "rmcs_msgs/dart_slider_status.hpp"
 
 namespace rmcs_dart_guidance::manager {
 
@@ -18,16 +18,14 @@ public:
     };
 
     BeltMoveAction(
-        std::string name, rmcs_msgs::DartSliderStatus& belt_command,
-        double& belt_target_velocity, double& belt_torque_limit, double& belt_hold_torque,
-        bool& belt_wait_zero_velocity,
+        std::string name, rmcs_msgs::DartSliderStatus& belt_command, double& belt_target_velocity,
+        double& belt_torque_limit, double& belt_hold_torque, bool& belt_wait_zero_velocity,
         const double& left_belt_velocity, const double& right_belt_velocity,
         const double& left_belt_torque, const double& right_belt_torque,
-        rmcs_msgs::DartSliderStatus command, double velocity, double torque_limit, double hold_torque,
-        uint64_t timeout_ticks, double stall_velocity_threshold = 1.0,
-        double stall_torque_threshold = 0.5,
-        uint64_t stall_confirm_ticks = 20, uint64_t min_running_ticks = 50,
-        ExitMode exit_mode = ExitMode::WAIT_HOLD_TORQUE,
+        rmcs_msgs::DartSliderStatus command, double velocity, double torque_limit,
+        double hold_torque, uint64_t timeout_ticks, double stall_velocity_threshold = 1.0,
+        double stall_torque_threshold = 0.5, uint64_t stall_confirm_ticks = 20,
+        uint64_t min_running_ticks = 50, ExitMode exit_mode = ExitMode::WAIT_HOLD_TORQUE,
         bool timeout_returns_success = false)
         : IAction(std::move(name))
         , belt_command_(belt_command)

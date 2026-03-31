@@ -8,9 +8,6 @@
 #include "manager/task/launch_preparation_task.hpp"
 #include "manager/task/silder_init_task.hpp"
 #include "manager/task/task.hpp"
-#include "manager/task/vision_assisted_launch_preparation_task.hpp"
-
-#include <algorithm>
 #include <cstdint>
 #include <deque>
 #include <memory>
@@ -33,10 +30,10 @@
 
 namespace rmcs_dart_guidance::manager {
 
-// DartManagerV2
+// DartManager
 //   · /dart/manager/lifting/command、/dart/manager/limiting/command 输出给下层执行组件
 //   · 升降堵转检测仍在 FillingLiftAction 内完成（直接读速度反馈，无循环依赖）
-class DartManagerV2
+class DartManager
     : public rmcs_executor::Component
     , public rclcpp::Node {
 public:
@@ -46,7 +43,7 @@ public:
         ERROR = 2,
     };
 
-    DartManagerV2()
+    DartManager()
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
@@ -74,6 +71,7 @@ public:
         register_output("/dart/manager/belt/target_velocity", belt_target_velocity_, 0.0);
         register_output("/dart/manager/belt/torque_limit", belt_torque_limit_, 0.0);
         register_output("/dart/manager/belt/hold_torque", belt_hold_torque_, 0.0);
+        register_output("/dart/manager/belt/torque_offset", belt_torque_offset_, 0.0);
         register_output("/dart/manager/belt/wait_zero_velocity", belt_wait_zero_velocity_, false);
         register_output("/dart/manager/belt/zero_calibration", belt_zero_calibration_, false);
         register_output("/dart/manager/trigger/lock_enable", trigger_lock_enable_, false);
@@ -139,10 +137,22 @@ public:
             belt_prepare_torque_limit_ = 5.0;
         }
         try {
+            belt_prepare_up_torque_limit_ =
+                get_parameter("belt_prepare_up_torque_limit").as_double();
+        } catch (...) {
+            belt_prepare_up_torque_limit_ = 1.5;
+        }
+        try {
             belt_prepare_down_ramp_ticks_ =
                 (uint64_t)get_parameter("belt_prepare_down_ramp_ticks").as_int();
         } catch (...) {
             belt_prepare_down_ramp_ticks_ = 400;
+        }
+        try {
+            belt_prepare_down_torque_offset_ =
+                get_parameter("belt_prepare_down_torque_offset").as_double();
+        } catch (...) {
+            belt_prepare_down_torque_offset_ = 2.0;
         }
         try {
             belt_prepare_down_hold_torque_ =
@@ -568,11 +578,12 @@ private:
 
             return std::make_shared<LaunchPreparationTask>(
                 *belt_command_, *belt_target_velocity_, *belt_torque_limit_, *belt_hold_torque_,
-                *belt_wait_zero_velocity_, *left_belt_angle_, *right_belt_angle_,
-                *left_belt_velocity_, *right_belt_velocity_, *left_belt_torque_,
+                *belt_wait_zero_velocity_, *belt_torque_offset_, *left_belt_angle_,
+                *right_belt_angle_, *left_belt_velocity_, *right_belt_velocity_, *left_belt_torque_,
                 *right_belt_torque_, *trigger_lock_enable_, belt_down_distance_,
                 belt_pulley_radius_, down_velocity, belt_prepare_torque_limit_,
-                belt_prepare_down_ramp_ticks_, belt_prepare_down_hold_torque_,
+                belt_prepare_up_torque_limit_, belt_prepare_down_ramp_ticks_,
+                belt_prepare_down_torque_offset_, belt_prepare_down_hold_torque_,
                 belt_prepare_down_zero_velocity_threshold_, belt_prepare_down_zero_confirm_ticks_,
                 belt_prepare_down_ramp_timeout_ticks_, require_lifting_down, *lifting_command_,
                 *lifting_left_vel_fb_, *lifting_right_vel_fb_, *belt_zero_calibration_);
@@ -583,14 +594,15 @@ private:
             double down_velocity = belt_prepare_down_velocity_;
             return std::make_shared<CancelLaunchTask>(
                 *belt_command_, *belt_target_velocity_, *belt_torque_limit_, *belt_hold_torque_,
-                *belt_wait_zero_velocity_, *left_belt_angle_, *right_belt_angle_,
+                *belt_wait_zero_velocity_, *belt_torque_offset_, *left_belt_angle_, *right_belt_angle_,
                 *left_belt_velocity_, *right_belt_velocity_, *left_belt_torque_,
                 *right_belt_torque_, *trigger_lock_enable_, *lifting_command_,
                 *lifting_left_vel_fb_, *lifting_right_vel_fb_, belt_down_distance_,
                 belt_pulley_radius_, down_velocity, belt_prepare_torque_limit_,
-                belt_prepare_down_ramp_ticks_, belt_prepare_down_hold_torque_,
-                belt_prepare_down_zero_velocity_threshold_, belt_prepare_down_zero_confirm_ticks_,
-                belt_prepare_down_ramp_timeout_ticks_, *belt_zero_calibration_);
+                belt_prepare_up_torque_limit_, belt_prepare_down_ramp_ticks_,
+                belt_prepare_down_hold_torque_, belt_prepare_down_zero_velocity_threshold_,
+                belt_prepare_down_zero_confirm_ticks_, belt_prepare_down_ramp_timeout_ticks_,
+                *belt_zero_calibration_);
         }
 
         if (cmd == "fire") {
@@ -644,6 +656,7 @@ private:
     OutputInterface<double> belt_target_velocity_;
     OutputInterface<double> belt_torque_limit_;
     OutputInterface<double> belt_hold_torque_;
+    OutputInterface<double> belt_torque_offset_;
     OutputInterface<bool> belt_wait_zero_velocity_;
     OutputInterface<bool> belt_zero_calibration_;
     OutputInterface<bool> trigger_lock_enable_;
@@ -669,7 +682,9 @@ private:
     double belt_prepare_down_velocity_first_{5.0};           // rad/s
     double belt_prepare_down_velocity_{10.0};                // rad/s
     double belt_prepare_torque_limit_{5.0};                  // N⋅m
+    double belt_prepare_up_torque_limit_{1.5};               // N⋅m
     uint64_t belt_prepare_down_ramp_ticks_{400};             // ticks
+    double belt_prepare_down_torque_offset_{2.0};            // N⋅m
     double belt_prepare_down_hold_torque_{5.0};              // N⋅m
     double belt_prepare_down_zero_velocity_threshold_{0.15}; // rad/s
     uint64_t belt_prepare_down_zero_confirm_ticks_{60};      // ticks
@@ -711,4 +726,4 @@ private:
 } // namespace rmcs_dart_guidance::manager
 
 #include <pluginlib/class_list_macros.hpp>
-PLUGINLIB_EXPORT_CLASS(rmcs_dart_guidance::manager::DartManagerV2, rmcs_executor::Component)
+PLUGINLIB_EXPORT_CLASS(rmcs_dart_guidance::manager::DartManager, rmcs_executor::Component)

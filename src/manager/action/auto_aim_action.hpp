@@ -38,7 +38,7 @@ public:
     AutoAimAction(
         Eigen::Vector2d& yaw_pitch_control_velocity, bool& aim_ready, Eigen::Vector2d& aim_error_px,
         Eigen::Vector2d& desired_target_px_output, const cv::Point2i& current_target_position,
-        const bool& tracking, const rclcpp::Logger& logger, AutoAimParams params)
+        const bool& tracking, rclcpp::Logger logger, AutoAimParams params)
         : IAction("auto_aim")
         , yaw_pitch_control_velocity_(yaw_pitch_control_velocity)
         , aim_ready_(aim_ready)
@@ -46,7 +46,7 @@ public:
         , desired_target_px_output_(desired_target_px_output)
         , current_target_position_(current_target_position)
         , tracking_(tracking)
-        , logger_(logger)
+        , logger_(std::move(logger))
         , params_(std::move(params)) {}
 
     void on_enter() override {
@@ -101,15 +101,13 @@ public:
         const Eigen::Vector2d accept_deadband_px =
             params_.accept_deadband_px.cwiseMax(ready_exit_deadband_px);
 
-        const bool within_deadband =
-            std::abs(error_px.x()) <= params_.deadband_px.x()
-            && std::abs(error_px.y()) <= params_.deadband_px.y();
+        const bool within_deadband = std::abs(error_px.x()) <= params_.deadband_px.x()
+                                  && std::abs(error_px.y()) <= params_.deadband_px.y();
         const bool within_ready_hold_deadband =
             std::abs(error_px.x()) <= ready_exit_deadband_px.x()
             && std::abs(error_px.y()) <= ready_exit_deadband_px.y();
-        const bool within_accept_deadband =
-            std::abs(error_px.x()) <= accept_deadband_px.x()
-            && std::abs(error_px.y()) <= accept_deadband_px.y();
+        const bool within_accept_deadband = std::abs(error_px.x()) <= accept_deadband_px.x()
+                                         && std::abs(error_px.y()) <= accept_deadband_px.y();
 
         if (aim_ready_ && within_ready_hold_deadband) {
             yaw_pitch_control_velocity_ = Eigen::Vector2d::Zero();
@@ -172,16 +170,14 @@ private:
 
         last_log_time_ = now;
         RCLCPP_INFO(
-            logger_,
-            "[AutoAimAction] desired=(%.1f, %.1f) current=(%d, %d) error=(%.1f, %.1f)",
+            logger_, "[AutoAimAction] desired=(%.1f, %.1f) current=(%d, %d) error=(%.1f, %.1f)",
             params_.desired_target_px.x(), params_.desired_target_px.y(), current_target_position.x,
             current_target_position.y, error_px.x(), error_px.y());
     }
 
     void log_timeout() const {
         RCLCPP_WARN(
-            logger_,
-            "[AutoAimAction] timeout: tracking=%s last_error=(%.1f, %.1f)",
+            logger_, "[AutoAimAction] timeout: tracking=%s last_error=(%.1f, %.1f)",
             last_tracking_valid_ ? "true" : "false", aim_error_px_.x(), aim_error_px_.y());
     }
 
@@ -191,16 +187,16 @@ private:
         }
 
         const double velocity = error_px * gain;
-        const double bounded_velocity = std::clamp(
-            velocity, -params_.max_transform_rate, params_.max_transform_rate);
+        const double bounded_velocity =
+            std::clamp(velocity, -params_.max_transform_rate, params_.max_transform_rate);
         const double bounded_magnitude = std::abs(bounded_velocity);
         if (bounded_magnitude <= 0.0) {
             return 0.0;
         }
 
         const double final_magnitude = std::clamp(
-            std::max(bounded_magnitude, params_.min_transform_rate),
-            0.0, params_.max_transform_rate);
+            std::max(bounded_magnitude, params_.min_transform_rate), 0.0,
+            params_.max_transform_rate);
         return std::copysign(final_magnitude, bounded_velocity);
     }
 
