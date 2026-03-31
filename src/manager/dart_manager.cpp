@@ -56,6 +56,8 @@ public:
         register_input("/dart/drive_belt/right/velocity", right_belt_velocity_);
         register_input("/dart/drive_belt/left/torque",   left_belt_torque_);
         register_input("/dart/drive_belt/right/torque",  right_belt_torque_);
+        register_input("/dart/drive_belt/left/angle",    left_belt_angle_);
+        register_input("/dart/drive_belt/right/angle",   right_belt_angle_);
         register_input("/dart/lifting_left/velocity",    lifting_left_vel_fb_);
         register_input("/dart/lifting_right/velocity",   lifting_right_vel_fb_);
 
@@ -72,6 +74,7 @@ public:
         register_output("/dart/manager/belt/torque_limit", belt_torque_limit_, 0.0);
         register_output("/dart/manager/belt/hold_torque", belt_hold_torque_, 0.0);
         register_output("/dart/manager/belt/wait_zero_velocity", belt_wait_zero_velocity_, false);
+        register_output("/dart/manager/belt/zero_calibration", belt_zero_calibration_, false);
         register_output("/dart/manager/trigger/lock_enable", trigger_lock_enable_, false);
 
         register_output("/pitch/control/velocity", yaw_pitch_control_velocity_, Eigen::Vector2d::Zero());
@@ -113,6 +116,57 @@ public:
         }
 
         limiting_fill_ticks_  = (uint64_t)get_parameter("limiting_fill_ticks").as_int();
+
+        belt_down_distance_ = get_parameter("belt_down_distance").as_double();  // m
+        belt_pulley_radius_ = get_parameter("belt_pulley_radius").as_double();  // m
+
+        // 传送带速度和扭矩限制参数（集中管理）
+        try {
+            belt_prepare_down_velocity_first_ =
+                get_parameter("belt_prepare_down_velocity_first").as_double();
+        } catch (...) {
+            belt_prepare_down_velocity_first_ = 5.0;
+        }
+        try {
+            belt_prepare_down_velocity_ = get_parameter("belt_prepare_down_velocity").as_double();
+        } catch (...) {
+            belt_prepare_down_velocity_ = 10.0;
+        }
+        try {
+            belt_prepare_torque_limit_ = get_parameter("belt_prepare_torque_limit").as_double();
+        } catch (...) {
+            belt_prepare_torque_limit_ = 5.0;
+        }
+        try {
+            belt_prepare_down_ramp_ticks_ =
+                (uint64_t)get_parameter("belt_prepare_down_ramp_ticks").as_int();
+        } catch (...) {
+            belt_prepare_down_ramp_ticks_ = 400;
+        }
+        try {
+            belt_prepare_down_hold_torque_ =
+                get_parameter("belt_prepare_down_hold_torque").as_double();
+        } catch (...) {
+            belt_prepare_down_hold_torque_ = 5.0;
+        }
+        try {
+            belt_prepare_down_zero_velocity_threshold_ =
+                get_parameter("belt_prepare_down_zero_velocity_threshold").as_double();
+        } catch (...) {
+            belt_prepare_down_zero_velocity_threshold_ = 0.15;
+        }
+        try {
+            belt_prepare_down_zero_confirm_ticks_ =
+                (uint64_t)get_parameter("belt_prepare_down_zero_confirm_ticks").as_int();
+        } catch (...) {
+            belt_prepare_down_zero_confirm_ticks_ = 60;
+        }
+        try {
+            belt_prepare_down_ramp_timeout_ticks_ =
+                (uint64_t)get_parameter("belt_prepare_down_ramp_timeout_ticks").as_int();
+        } catch (...) {
+            belt_prepare_down_ramp_timeout_ticks_ = 2000;
+        }
 
         lifting_stall_threshold_    = get_parameter("lifting_stall_threshold").as_double();
         lifting_stall_confirm_ticks_ =
@@ -476,65 +530,54 @@ private:
             *belt_target_velocity_, *belt_torque_limit_, *belt_hold_torque_,
             *belt_wait_zero_velocity_,
             *left_belt_velocity_,    *right_belt_velocity_,
-            *left_belt_torque_,      *right_belt_torque_);
+            *left_belt_torque_,      *right_belt_torque_,
+            *belt_zero_calibration_);
     }
 
     // 任务工厂
     std::shared_ptr<Task> make_task(const std::string& cmd) {
         if (cmd == "launch_prepare" || cmd == "launch-prepare") {
-            auto launch_mode = first_fill_pending_
-                             ? LaunchPreparationTask::Mode::FIRST_FILL
-                             : LaunchPreparationTask::Mode::NORMAL;
-            first_fill_pending_ = false;
+            // 根据当前 fire_count 选择下降速度（fire_count=0 表示第一次准备）
+            double down_velocity = (fire_count_ == 0) ? belt_prepare_down_velocity_first_
+                                                      : belt_prepare_down_velocity_;
+            bool require_lifting_down = (fire_count_ > 0);
 
-            if (launch_prepare_enable_visual_assist_) {
-                return std::make_shared<VisionAssistedLaunchPreparationTask>(
-                    *belt_command_, *belt_target_velocity_, *belt_torque_limit_, *belt_hold_torque_,
-                    *belt_wait_zero_velocity_, *left_belt_velocity_, *right_belt_velocity_,
-                    *left_belt_torque_, *right_belt_torque_, *trigger_lock_enable_,
-                    *lifting_command_, *lifting_left_vel_fb_, *lifting_right_vel_fb_,
-                    lifting_stall_threshold_, lifting_stall_confirm_ticks_,
-                    lifting_stall_min_run_ticks_, lifting_stall_timeout_ticks_, launch_mode,
-                    auto_aim_feedback_.yaw_pitch_control_velocity(),
-                    auto_aim_feedback_.aim_ready(), auto_aim_feedback_.aim_error_px(),
-                    auto_aim_feedback_.desired_target_px(), current_target_position_,
-                    current_target_tracking_, logger_,
-                    AutoAimParams{
-                        .desired_target_px = current_desired_target_px(),
-                        .deadband_px = aim_deadband_px_,
-                        .ready_exit_deadband_px = aim_ready_exit_deadband_px_,
-                        .accept_deadband_px = aim_accept_deadband_px_,
-                        .yaw_gain = aim_yaw_gain_,
-                        .pitch_gain = aim_pitch_gain_,
-                        .ready_confirm_ticks = aim_ready_confirm_ticks_,
-                        .timeout_ticks = aim_timeout_ticks_,
-                        .min_transform_rate = aim_min_transform_rate_,
-                        .max_transform_rate = auto_aim_max_transform_rate_,
-                    });
+            // 打印角度反馈状态
+            RCLCPP_INFO(logger_, "[DartManager] Creating launch_prepare task, fire_count=%u", fire_count_);
+            if (left_belt_angle_.ready() && right_belt_angle_.ready()) {
+                RCLCPP_INFO(logger_, "[DartManager] Belt angles: left=%.4f, right=%.4f",
+                            *left_belt_angle_, *right_belt_angle_);
+            } else {
+                RCLCPP_WARN(logger_, "[DartManager] Belt angle feedback NOT READY!");
             }
+            RCLCPP_INFO(logger_, "[DartManager] Belt params: down_distance=%.4f m, pulley_radius=%.4f m, down_velocity=%.2f rad/s",
+                        belt_down_distance_, belt_pulley_radius_, down_velocity);
 
             return std::make_shared<LaunchPreparationTask>(
                 *belt_command_, *belt_target_velocity_, *belt_torque_limit_, *belt_hold_torque_,
-                *belt_wait_zero_velocity_, *left_belt_velocity_, *right_belt_velocity_,
-                *left_belt_torque_, *right_belt_torque_, *trigger_lock_enable_,
-                *lifting_command_, *lifting_left_vel_fb_, *lifting_right_vel_fb_,
-                lifting_stall_threshold_, lifting_stall_confirm_ticks_,
-                lifting_stall_min_run_ticks_, lifting_stall_timeout_ticks_, launch_mode);
+                *belt_wait_zero_velocity_, *left_belt_angle_, *right_belt_angle_,
+                *left_belt_velocity_, *right_belt_velocity_, *left_belt_torque_,
+                *right_belt_torque_, *trigger_lock_enable_, belt_down_distance_,
+                belt_pulley_radius_, down_velocity, belt_prepare_torque_limit_,
+                belt_prepare_down_ramp_ticks_, belt_prepare_down_hold_torque_,
+                belt_prepare_down_zero_velocity_threshold_, belt_prepare_down_zero_confirm_ticks_,
+                belt_prepare_down_ramp_timeout_ticks_, require_lifting_down, *lifting_command_,
+                *lifting_left_vel_fb_, *lifting_right_vel_fb_, *belt_zero_calibration_);
         }
 
         if (cmd == "unload" || cmd == "cancel_launch") {
-            first_fill_pending_ = true;
-
+            // 取消发射使用与准备发射相同的下行参数
+            double down_velocity = belt_prepare_down_velocity_;
             return std::make_shared<CancelLaunchTask>(
                 *belt_command_, *belt_target_velocity_, *belt_torque_limit_, *belt_hold_torque_,
-                *belt_wait_zero_velocity_,
-                *left_belt_velocity_, *right_belt_velocity_,
-                *left_belt_torque_,   *right_belt_torque_,
-                *trigger_lock_enable_,
-                *lifting_command_,
-                *lifting_left_vel_fb_, *lifting_right_vel_fb_,
-                lifting_stall_threshold_, lifting_stall_confirm_ticks_,
-                lifting_stall_min_run_ticks_, lifting_stall_timeout_ticks_);
+                *belt_wait_zero_velocity_, *left_belt_angle_, *right_belt_angle_,
+                *left_belt_velocity_, *right_belt_velocity_, *left_belt_torque_,
+                *right_belt_torque_, *trigger_lock_enable_, *lifting_command_,
+                *lifting_left_vel_fb_, *lifting_right_vel_fb_, belt_down_distance_,
+                belt_pulley_radius_, down_velocity, belt_prepare_torque_limit_,
+                belt_prepare_down_ramp_ticks_, belt_prepare_down_hold_torque_,
+                belt_prepare_down_zero_velocity_threshold_, belt_prepare_down_zero_confirm_ticks_,
+                belt_prepare_down_ramp_timeout_ticks_, *belt_zero_calibration_);
         }
 
         if (cmd == "fire") {
@@ -574,6 +617,8 @@ private:
     InputInterface<double> right_belt_velocity_;
     InputInterface<double> left_belt_torque_;
     InputInterface<double> right_belt_torque_;
+    InputInterface<double> left_belt_angle_;
+    InputInterface<double> right_belt_angle_;
 
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<Eigen::Vector2d> joystick_right_;
@@ -589,6 +634,7 @@ private:
     OutputInterface<double> belt_torque_limit_;
     OutputInterface<double> belt_hold_torque_;
     OutputInterface<bool>   belt_wait_zero_velocity_;
+    OutputInterface<bool>   belt_zero_calibration_;
     OutputInterface<bool>   trigger_lock_enable_;
 
     OutputInterface<Eigen::Vector2d> yaw_pitch_control_velocity_;
@@ -605,6 +651,18 @@ private:
     double   manual_force_scale_{5.0};
     double   auto_aim_max_transform_rate_{500.0};
     uint64_t limiting_fill_ticks_{500};
+
+    double belt_down_distance_{0.0};  // m
+    double belt_pulley_radius_{0.0};  // m
+
+    double belt_prepare_down_velocity_first_{5.0};           // rad/s
+    double belt_prepare_down_velocity_{10.0};                // rad/s
+    double belt_prepare_torque_limit_{5.0};                  // N⋅m
+    uint64_t belt_prepare_down_ramp_ticks_{400};             // ticks
+    double belt_prepare_down_hold_torque_{5.0};              // N⋅m
+    double belt_prepare_down_zero_velocity_threshold_{0.15}; // rad/s
+    uint64_t belt_prepare_down_zero_confirm_ticks_{60};      // ticks
+    uint64_t belt_prepare_down_ramp_timeout_ticks_{2000};    // ticks
 
     double   lifting_stall_threshold_{0.5};
     uint64_t lifting_stall_confirm_ticks_{100};
@@ -635,6 +693,7 @@ private:
     std::shared_ptr<Task>             current_task_;
     std::deque<std::shared_ptr<Task>> task_queue_;
     bool first_fill_pending_{true};
+    uint32_t fire_count_{0};  // 当前轮次已完成发射数
     bool first_tick_of_task_{true};
 };
 
