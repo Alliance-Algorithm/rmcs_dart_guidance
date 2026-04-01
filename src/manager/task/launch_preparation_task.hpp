@@ -2,6 +2,7 @@
 
 #include "manager/action/action_set.hpp"
 #include "manager/action/belt_constant_velocity_move_action.hpp"
+#include "manager/action/belt_deceleration_with_stall_action.hpp"
 #include "manager/action/belt_hold_torque_action.hpp"
 #include "manager/action/belt_move_action.hpp"
 #include "manager/action/belt_pid_deceleration_action.hpp"
@@ -34,7 +35,11 @@ public:
         uint64_t down_zero_confirm_ticks, uint64_t down_ramp_timeout_ticks,
         bool require_lifting_down, rmcs_msgs::DartSliderStatus& lifting_command,
         const double& lifting_left_vel_fb, const double& lifting_right_vel_fb,
-        bool& belt_zero_calibration)
+        bool& belt_zero_calibration, double belt_up_distance, double up_velocity,
+        double up_decel_target_velocity, double up_decel_torque_offset,
+        double up_stall_velocity_threshold, uint64_t up_stall_confirm_ticks,
+        uint64_t up_stall_min_run_ticks, uint64_t up_decel_timeout_ticks,
+        bool is_first_shot = false)
         : Task("launch_preparation", "发射准备（传送带下行 + 扳机锁定 + 上行复位）") {
 
         // 步骤1：传送带匀速下行到目标位置（使用速度控制+多圈角度反馈）
@@ -61,7 +66,6 @@ public:
                 0.60));                             // 下行最大距离限制（m，正值）
 
         // 步骤2：PID减速阶段（目标速度=0，加常态力矩偏移补偿负载）
-        // 必须等待速度真正降到零，否则保持阶段的常态力矩会导致疯转
         then(
             std::make_shared<BeltPIDDecelerationAction>(
                 "belt_pid_deceleration",      // 动作名称
@@ -74,8 +78,32 @@ public:
                 down_zero_confirm_ticks,      // 零速确认帧数
                 down_ramp_timeout_ticks));    // 超时帧数
 
-        if (require_lifting_down) {
-            // 步骤3（2-4发）：传送带保持高扭矩 + 升降平台下行 + 扳机锁定并行
+        // 步骤3：根据是否第一发选择不同的并行动作
+        if (is_first_shot) {
+            // 第一发：传送带保持高扭矩 + 扳机锁定并行（无升降下行）
+            auto parallel_hold_and_lock =
+                std::make_shared<ActionSet>("hold_and_lock", ActionSet::Policy::ALL_SUCCESS);
+
+            parallel_hold_and_lock
+                ->also(
+                    std::make_shared<BeltHoldTorqueAction>(
+                        "belt_hold_torque",      // 动作名称
+                        belt_command,            // 传送带命令（输出）
+                        belt_target_velocity,    // 目标速度（输出）
+                        belt_hold_torque,        // 保持力矩（输出）
+                        belt_wait_zero_velocity, // WAIT模式选择（输出）
+                        belt_torque_offset,      // 力矩偏移（输出）
+                        down_hold_torque,        // 保持力矩值（N⋅m）
+                        down_torque_offset,      // 力矩偏移值（N⋅m）
+                        500))                    // 保持时长（ticks）
+                .also(
+                    std::make_shared<TriggerControlAction>(
+                        trigger_lock_enable,     // 扳机锁定使能（输出）
+                        true,                    // 锁定（true）
+                        500));                   // 等待锁定完成帧数
+            then(parallel_hold_and_lock);
+        } else if (require_lifting_down) {
+            // 第2-4发：传送带保持高扭矩 + 升降平台下行 + 扳机锁定并行
             auto parallel_hold_lock_and_lift =
                 std::make_shared<ActionSet>("hold_lock_and_lift", ActionSet::Policy::ALL_SUCCESS);
 
@@ -133,30 +161,46 @@ public:
             then(parallel_hold_and_lock);
         }
 
-        // 步骤4：传送带上行到机械限位（速度控制 + 堵转检测）
+        // 步骤4：传送带上行到目标位置（位置控制）
+        // 目标位置略低于下行起点（比如 -0.65m，而下行是 0.70m）
         then(
-            std::make_shared<BeltMoveAction>(
-                "belt_reset_up",                              // 动作名称
-                belt_command,                                 // 同步带目标状态（输出）
-                belt_target_velocity,                         // 同步带目标速度（输出）
-                belt_torque_limit,                            // 同步带力矩限制（输出）
-                belt_hold_torque,                             // 同步带保持力矩（输出）
-                belt_wait_zero_velocity,                      // Wait 时使用零速闭环还是保留力矩
-                left_belt_velocity,                           // 左同步带反馈（输入）
-                right_belt_velocity,                          // 右同步带反馈（输入）
-                left_belt_torque,                             // 左同步带力矩（输入）
-                right_belt_torque,                            // 右同步带力矩（输出）
-                rmcs_msgs::DartSliderStatus::UP,              // 指令状态
-                15,                                           // 设定速度（rad/s）
-                up_torque_limit,                              // 设定力矩限制（N⋅m）
-                0.5,                                          // 设定保持力矩（N⋅m）
-                5000,                                         // 超时帧数
-                0.5,                                          // 堵转速度阈值（rad/s）
-                0.8,                                          // 堵转力矩阈值（N⋅m）
-                100,                                          // 堵转确认帧数
-                50,                                           // 最短运行帧数
-                BeltMoveAction::ExitMode::WAIT_ZERO_VELOCITY, // 退出模式
-                false));                                      // 超时返回失败
+            std::make_shared<BeltConstantVelocityMoveAction>(
+                "belt_reset_up_position", // 动作名称
+                belt_command,             // 速度模式方向命令（输出）
+                belt_target_velocity,     // 目标速度（输出）
+                belt_torque_limit,        // 扭矩限幅（输出）
+                left_belt_angle,          // 左电机角度反馈（输入）
+                right_belt_angle,         // 右电机角度反馈（输入）
+                left_belt_velocity,       // 左电机速度反馈（输入）
+                right_belt_velocity,      // 右电机速度反馈（输入）
+                -belt_up_distance,        // 目标距离（m，负值=上行）
+                belt_pulley_radius,       // 滑轮半径（m）
+                up_velocity,              // 运动速度（rad/s）
+                up_torque_limit,          // 扭矩限制（N⋅m）
+                5000,                     // 超时帧数
+                50,                       // 最小运行帧数
+                0.5,                      // 位置到达容差（rad）
+                0.3,                      // 堵转速度阈值（rad/s）
+                100,                      // 堵转确认帧数
+                0.80));                   // 下行最大距离限制（m，正值）
+
+        // 步骤5：减速并监测堵转（堵转标志成功，作为下次下行起点）
+        then(
+            std::make_shared<BeltDecelerationWithStallAction>(
+                "belt_decel_and_stall", // 动作名称
+                belt_target_velocity,   // 目标速度（输出）
+                belt_torque_offset,     // 力矩偏移（输出）
+                left_belt_velocity,     // 左电机速度反馈（输入）
+                right_belt_velocity,    // 右电机速度反馈（输入）
+                left_belt_torque,       // 左电机力矩反馈（输入）
+                right_belt_torque,      // 右电机力矩反馈（输入）
+                5.0,                    // 目标速度（rad/s）
+                up_decel_torque_offset, // 力矩偏移（N⋅m）
+                0.1,                    // 堵转速度阈值（rad/s）
+                0.1,                    // 堵转扭矩阈值（N⋅m）
+                100,                    // 堵转确认帧数
+                10,                     // 最小运行帧数
+                2000));                 // 超时帧数
 
         then(std::make_shared<DelayAction>("stabilize_wait", 50));
 

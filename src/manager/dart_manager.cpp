@@ -179,6 +179,53 @@ public:
             belt_prepare_down_ramp_timeout_ticks_ = 2000;
         }
 
+        // 加载上行控制参数
+        try {
+            belt_up_distance_ = get_parameter("belt_up_distance").as_double();
+        } catch (...) {
+            belt_up_distance_ = 0.65;
+        }
+        try {
+            belt_prepare_up_velocity_ = get_parameter("belt_prepare_up_velocity").as_double();
+        } catch (...) {
+            belt_prepare_up_velocity_ = 15.0;
+        }
+        try {
+            belt_up_decel_target_velocity_ =
+                get_parameter("belt_up_decel_target_velocity").as_double();
+        } catch (...) {
+            belt_up_decel_target_velocity_ = 1.0;
+        }
+        try {
+            belt_up_decel_torque_offset_ = get_parameter("belt_up_decel_torque_offset").as_double();
+        } catch (...) {
+            belt_up_decel_torque_offset_ = 0.0;
+        }
+        try {
+            belt_up_stall_velocity_threshold_ =
+                get_parameter("belt_up_stall_velocity_threshold").as_double();
+        } catch (...) {
+            belt_up_stall_velocity_threshold_ = 0.15;
+        }
+        try {
+            belt_up_stall_confirm_ticks_ =
+                (uint64_t)get_parameter("belt_up_stall_confirm_ticks").as_int();
+        } catch (...) {
+            belt_up_stall_confirm_ticks_ = 100;
+        }
+        try {
+            belt_up_stall_min_run_ticks_ =
+                (uint64_t)get_parameter("belt_up_stall_min_run_ticks").as_int();
+        } catch (...) {
+            belt_up_stall_min_run_ticks_ = 300;
+        }
+        try {
+            belt_up_decel_timeout_ticks_ =
+                (uint64_t)get_parameter("belt_up_decel_timeout_ticks").as_int();
+        } catch (...) {
+            belt_up_decel_timeout_ticks_ = 3000;
+        }
+
         lifting_stall_threshold_ = get_parameter("lifting_stall_threshold").as_double();
         lifting_stall_confirm_ticks_ =
             (uint64_t)get_parameter("lifting_stall_confirm_ticks").as_int();
@@ -192,7 +239,7 @@ public:
         sync_current_dart_outputs();
         clear_auto_aim_feedback();
         submit_task(make_slider_init_task());
-        RCLCPP_INFO(logger_, "[DartManagerV2] initialized, queued SliderInitTask on startup");
+        RCLCPP_INFO(logger_, "[DartManager] initialized, queued SliderInitTask on startup");
     }
 
     void update() override {
@@ -232,11 +279,11 @@ private:
             recover();
         } else {
             auto task = make_task(cmd);
-            RCLCPP_INFO(logger_, "[DartManagerV2] received command: '%s'", cmd.c_str());
+            RCLCPP_INFO(logger_, "[DartManager] received command: '%s'", cmd.c_str());
             if (task) {
                 submit_task(std::move(task));
             } else {
-                RCLCPP_WARN(logger_, "[DartManagerV2] unknown command: '%s'", cmd.c_str());
+                RCLCPP_WARN(logger_, "[DartManager] unknown command: '%s'", cmd.c_str());
             }
         }
     }
@@ -244,7 +291,7 @@ private:
     void submit_task(std::shared_ptr<Task> task) {
         task_queue_.push_back(std::move(task));
         RCLCPP_INFO(
-            logger_, "[DartManagerV2] task queued: %s (queue size=%zu)",
+            logger_, "[DartManager] task queued: %s (queue size=%zu)",
             task_queue_.back()->name().c_str(), task_queue_.size());
     }
 
@@ -253,7 +300,7 @@ private:
         if (current_task_) {
             current_task_->cancel();
             current_task_.reset();
-            RCLCPP_WARN(logger_, "[DartManagerV2] all tasks cancelled");
+            RCLCPP_WARN(logger_, "[DartManager] all tasks cancelled");
         }
 
         first_fill_pending_ = true;
@@ -272,7 +319,7 @@ private:
         if (state_ == State::ERROR) {
             current_task_.reset();
             task_queue_.clear();
-            RCLCPP_INFO(logger_, "[DartManagerV2] recovered from ERROR, state=IDLE");
+            RCLCPP_INFO(logger_, "[DartManager] recovered from ERROR, state=IDLE");
             transition_to(State::IDLE);
         }
 
@@ -285,7 +332,7 @@ private:
 
         // 无论 ERROR 还是 IDLE，都重新排队传送带复位
         submit_task(make_slider_init_task());
-        RCLCPP_INFO(logger_, "[DartManagerV2] queued SliderInitTask for recovery");
+        RCLCPP_INFO(logger_, "[DartManager] queued SliderInitTask for recovery");
     }
 
     void dispatch_next_task() {
@@ -296,8 +343,7 @@ private:
         task_queue_.pop_front();
         prepare_outputs_for_task(*current_task_);
 
-        RCLCPP_INFO(
-            logger_, "[DartManagerV2] dispatching task: '%s'", current_task_->name().c_str());
+        RCLCPP_INFO(logger_, "[DartManager] dispatching task: '%s'", current_task_->name().c_str());
         transition_to(State::RUNNING);
 
         tick_current_task();
@@ -314,12 +360,12 @@ private:
         if (status == ActionStatus::SUCCESS) {
             const std::string completed_task_name = current_task_->name();
             current_task_->on_exit();
-            RCLCPP_INFO(logger_, "[DartManagerV2] task '%s' SUCCESS", completed_task_name.c_str());
+            RCLCPP_INFO(logger_, "[DartManager] task '%s' SUCCESS", completed_task_name.c_str());
 
             // 处理 fire 任务完成
             if (completed_task_name == "fire") {
                 fire_count_++;
-                RCLCPP_INFO(logger_, "[DartManagerV2] fire completed, fire_count=%u", fire_count_);
+                RCLCPP_INFO(logger_, "[DartManager] fire completed, fire_count=%u", fire_count_);
                 if (launch_prepare_enable_visual_assist_) {
                     advance_dart_sequence_after_fire();
                 }
@@ -329,7 +375,7 @@ private:
             if (completed_task_name == "cancel_launch") {
                 fire_count_ = 0;
                 RCLCPP_INFO(
-                    logger_, "[DartManagerV2] cancel_launch completed, fire_count reset to 0");
+                    logger_, "[DartManager] cancel_launch completed, fire_count reset to 0");
             }
 
             current_task_.reset();
@@ -337,7 +383,7 @@ private:
 
         } else if (status == ActionStatus::FAILURE) {
             RCLCPP_ERROR(
-                logger_, "[DartManagerV2] task '%s' FAILURE → state=ERROR",
+                logger_, "[DartManager] task '%s' FAILURE → state=ERROR",
                 current_task_->name().c_str());
             on_task_failure();
         }
@@ -531,7 +577,7 @@ private:
 
     void advance_dart_sequence_after_fire() {
         if (!dart_launch_sequence_.advance_after_fire()) {
-            RCLCPP_WARN(logger_, "[DartManagerV2] current dart index already at the last dart");
+            RCLCPP_WARN(logger_, "[DartManager] current dart index already at the last dart");
         }
         sync_current_dart_outputs();
         clear_auto_aim_feedback();
@@ -559,10 +605,13 @@ private:
             double down_velocity = (fire_count_ == 0) ? belt_prepare_down_velocity_first_
                                                       : belt_prepare_down_velocity_;
             bool require_lifting_down = (fire_count_ > 0);
+            bool is_first_shot = (fire_count_ == 0);
 
             // 打印角度反馈状态
             RCLCPP_INFO(
-                logger_, "[DartManager] Creating launch_prepare task, fire_count=%u", fire_count_);
+                logger_,
+                "[DartManager] Creating launch_prepare task, fire_count=%u, is_first_shot=%d",
+                fire_count_, is_first_shot);
             if (left_belt_angle_.ready() && right_belt_angle_.ready()) {
                 RCLCPP_INFO(
                     logger_, "[DartManager] Belt angles: left=%.4f, right=%.4f", *left_belt_angle_,
@@ -586,7 +635,11 @@ private:
                 belt_prepare_down_torque_offset_, belt_prepare_down_hold_torque_,
                 belt_prepare_down_zero_velocity_threshold_, belt_prepare_down_zero_confirm_ticks_,
                 belt_prepare_down_ramp_timeout_ticks_, require_lifting_down, *lifting_command_,
-                *lifting_left_vel_fb_, *lifting_right_vel_fb_, *belt_zero_calibration_);
+                *lifting_left_vel_fb_, *lifting_right_vel_fb_, *belt_zero_calibration_,
+                belt_up_distance_, belt_prepare_up_velocity_, belt_up_decel_target_velocity_,
+                belt_up_decel_torque_offset_, belt_up_stall_velocity_threshold_,
+                belt_up_stall_confirm_ticks_, belt_up_stall_min_run_ticks_,
+                belt_up_decel_timeout_ticks_, is_first_shot);
         }
 
         if (cmd == "unload" || cmd == "cancel_launch") {
@@ -594,8 +647,8 @@ private:
             double down_velocity = belt_prepare_down_velocity_;
             return std::make_shared<CancelLaunchTask>(
                 *belt_command_, *belt_target_velocity_, *belt_torque_limit_, *belt_hold_torque_,
-                *belt_wait_zero_velocity_, *belt_torque_offset_, *left_belt_angle_, *right_belt_angle_,
-                *left_belt_velocity_, *right_belt_velocity_, *left_belt_torque_,
+                *belt_wait_zero_velocity_, *belt_torque_offset_, *left_belt_angle_,
+                *right_belt_angle_, *left_belt_velocity_, *right_belt_velocity_, *left_belt_torque_,
                 *right_belt_torque_, *trigger_lock_enable_, *lifting_command_,
                 *lifting_left_vel_fb_, *lifting_right_vel_fb_, belt_down_distance_,
                 belt_pulley_radius_, down_velocity, belt_prepare_torque_limit_,
@@ -606,11 +659,12 @@ private:
         }
 
         if (cmd == "fire") {
+            bool is_first_shot = (fire_count_ == 0);
             return std::make_shared<FireAndPreloadTask>(
                 *trigger_lock_enable_, *lifting_command_, *lifting_left_vel_fb_,
                 *lifting_right_vel_fb_, lifting_stall_threshold_, lifting_stall_confirm_ticks_,
                 lifting_stall_min_run_ticks_, lifting_stall_timeout_ticks_, *limiting_command_,
-                limiting_fill_ticks_);
+                limiting_fill_ticks_, is_first_shot);
         }
 
         if (cmd == "manual_angle") {
@@ -690,6 +744,16 @@ private:
     uint64_t belt_prepare_down_zero_confirm_ticks_{60};      // ticks
     uint64_t belt_prepare_down_ramp_timeout_ticks_{2000};    // ticks
 
+    // 传送带上行控制参数
+    double belt_up_distance_{0.65};                 // m - 上行目标距离（略低于下行起点）
+    double belt_prepare_up_velocity_{15.0};         // rad/s - 上行速度
+    double belt_up_decel_target_velocity_{1.0};     // rad/s - 上行减速阶段目标速度
+    double belt_up_decel_torque_offset_{0.0};       // N⋅m - 上行减速阶段力矩偏移
+    double belt_up_stall_velocity_threshold_{0.15}; // rad/s - 上行堵转速度阈值
+    uint64_t belt_up_stall_confirm_ticks_{100};     // ticks - 上行堵转确认帧数
+    uint64_t belt_up_stall_min_run_ticks_{300};     // ticks - 上行堵转最小运行帧数
+    uint64_t belt_up_decel_timeout_ticks_{3000};    // ticks - 上行减速超时帧数
+
     double lifting_stall_threshold_{0.5};
     uint64_t lifting_stall_confirm_ticks_{100};
     uint64_t lifting_stall_min_run_ticks_{500};
@@ -719,7 +783,7 @@ private:
     std::shared_ptr<Task> current_task_;
     std::deque<std::shared_ptr<Task>> task_queue_;
     bool first_fill_pending_{true};
-    uint32_t fire_count_{0};                                 // 当前轮次已完成发射数
+    uint32_t fire_count_{0};                        // 当前轮次已完成发射数
     bool first_tick_of_task_{true};
 };
 

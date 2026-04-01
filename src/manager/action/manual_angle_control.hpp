@@ -2,7 +2,6 @@
 
 #include "action.hpp"
 
-#include <cstdint>
 #include <eigen3/Eigen/Dense>
 
 namespace rmcs_dart_guidance::manager {
@@ -12,10 +11,8 @@ namespace rmcs_dart_guidance::manager {
 class DartManualAngleControlAction : public IAction {
 public:
     DartManualAngleControlAction(
-        double& yaw_control_velocity,
-        double& pitch_control_velocity,
-        const Eigen::Vector2d& joystick_left,
-        const Eigen::Vector2d& joystick_right,
+        double& yaw_control_velocity, double& pitch_control_velocity,
+        const Eigen::Vector2d& joystick_left, const Eigen::Vector2d& joystick_right,
         double max_transform_rate)
         : IAction("dart_manual_angle_control")
         , yaw_control_velocity_(yaw_control_velocity)
@@ -27,7 +24,7 @@ public:
     void on_enter() override {}
 
     ActionStatus update() override {
-        yaw_control_velocity_   = joystick_left_.y()  * max_transform_rate_;
+        yaw_control_velocity_ = joystick_left_.y() * max_transform_rate_;
         pitch_control_velocity_ = joystick_right_.x() * max_transform_rate_;
 
         return ActionStatus::RUNNING;

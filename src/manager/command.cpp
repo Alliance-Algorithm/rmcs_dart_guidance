@@ -1,4 +1,3 @@
-#include <cstdint>
 #include <string>
 
 #include <eigen3/Eigen/Dense>
@@ -87,9 +86,6 @@ public:
                     RCLCPP_INFO(logger_, "[RemoteCommandBridge] toggle -> unload");
                 } else {
                     emit_command("launch_prepare");
-
-                    // RCLCPP_INFO(logger_,"cmd ： launch_prepare");
-
                     chambered_ = true;
                     RCLCPP_INFO(logger_, "[RemoteCommandBridge] toggle -> launch_prepare");
                 }

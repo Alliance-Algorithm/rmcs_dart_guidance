@@ -1,7 +1,6 @@
 #pragma once
 
 #include "action.hpp"
-#include <chrono>
 #include <cmath>
 #include <cstdint>
 
@@ -10,16 +9,10 @@ namespace rmcs_dart_guidance::manager {
 class BeltPIDDecelerationAction : public IAction {
 public:
     BeltPIDDecelerationAction(
-        std::string name,
-        double& belt_target_velocity,
-        double& belt_torque_offset,
-        const double& left_belt_velocity,
-        const double& right_belt_velocity,
-        double torque_offset_value,
-        double zero_velocity_threshold,
-        uint64_t zero_confirm_ticks,
-        uint64_t timeout_ticks
-    )
+        std::string name, double& belt_target_velocity, double& belt_torque_offset,
+        const double& left_belt_velocity, const double& right_belt_velocity,
+        double torque_offset_value, double zero_velocity_threshold, uint64_t zero_confirm_ticks,
+        uint64_t timeout_ticks)
         : IAction(std::move(name))
         , belt_target_velocity_(belt_target_velocity)
         , belt_torque_offset_(belt_torque_offset)
@@ -28,8 +21,7 @@ public:
         , torque_offset_value_(torque_offset_value)
         , zero_velocity_threshold_(zero_velocity_threshold)
         , zero_confirm_ticks_(zero_confirm_ticks)
-        , timeout_ticks_(timeout_ticks)
-    {}
+        , timeout_ticks_(timeout_ticks) {}
 
     void on_enter() override {
         belt_target_velocity_ = 0.0;
@@ -44,7 +36,8 @@ public:
         }
 
         // 计算平均速度
-        double avg_velocity = (std::abs(left_belt_velocity_) + std::abs(right_belt_velocity_)) / 2.0;
+        double avg_velocity =
+            (std::abs(left_belt_velocity_) + std::abs(right_belt_velocity_)) / 2.0;
 
         // 零速检测
         if (avg_velocity < zero_velocity_threshold_) {
@@ -59,9 +52,7 @@ public:
         return ActionStatus::RUNNING;
     }
 
-    void on_exit() override {
-        belt_torque_offset_ = 0.0;
-    }
+    void on_exit() override { belt_torque_offset_ = 0.0; }
 
 private:
     double& belt_target_velocity_;
