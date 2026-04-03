@@ -30,16 +30,13 @@ public:
     }
 
     ActionStatus update() override {
-        // 超时检测
         if (elapsed_ticks() >= timeout_ticks_) {
             return ActionStatus::SUCCESS;
         }
 
-        // 计算平均速度
         double avg_velocity =
             (std::abs(left_belt_velocity_) + std::abs(right_belt_velocity_)) / 2.0;
 
-        // 零速检测
         if (avg_velocity < zero_velocity_threshold_) {
             ++zero_counter_;
             if (zero_counter_ >= zero_confirm_ticks_) {

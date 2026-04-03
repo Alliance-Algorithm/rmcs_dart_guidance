@@ -57,6 +57,8 @@ public:
         register_input("/dart/drive_belt/right/angle", right_belt_angle_);
         register_input("/dart/lifting_left/velocity", lifting_left_vel_fb_);
         register_input("/dart/lifting_right/velocity", lifting_right_vel_fb_);
+        register_input("/force_sensor/channel_1/weight", current_force_ch1_);
+        register_input("/force_sensor/channel_2/weight", current_force_ch2_);
 
         register_input("/dart/manager/command", remote_command_input_, false);
         register_input("/dart/manager/web_command", web_command_input_, false);
@@ -234,6 +236,48 @@ public:
         lifting_stall_timeout_ticks_ =
             (uint64_t)get_parameter("lifting_stall_timeout_ticks").as_int();
 
+        // 力矩闭环参数
+        try {
+            enable_force_calibration_ = get_parameter("enable_force_calibration").as_bool();
+        } catch (...) {
+            enable_force_calibration_ = false;
+        }
+        try {
+            force_tolerance_ = get_parameter("force_tolerance").as_double();
+        } catch (...) {
+            force_tolerance_ = 5.0;    // N
+        }
+        try {
+            force_settle_ticks_ = (uint64_t)get_parameter("force_settle_ticks").as_int();
+        } catch (...) {
+            force_settle_ticks_ = 50;
+        }
+        try {
+            force_timeout_ticks_ = (uint64_t)get_parameter("force_timeout_ticks").as_int();
+        } catch (...) {
+            force_timeout_ticks_ = 2000;
+        }
+        try {
+            force_kp_ = get_parameter("force_kp").as_double();
+        } catch (...) {
+            force_kp_ = 0.1;
+        }
+        try {
+            force_ki_ = get_parameter("force_ki").as_double();
+        } catch (...) {
+            force_ki_ = 0.0;
+        }
+        try {
+            force_kd_ = get_parameter("force_kd").as_double();
+        } catch (...) {
+            force_kd_ = 0.01;
+        }
+        try {
+            force_max_velocity_ = get_parameter("force_max_velocity").as_double();
+        } catch (...) {
+            force_max_velocity_ = 5.0; // rad/s
+        }
+
         state_pub_ = create_publisher<std_msgs::msg::UInt8>("/dart/manager/state", 10);
 
         sync_current_dart_outputs();
@@ -304,12 +348,13 @@ private:
         }
 
         first_fill_pending_ = true;
+        fire_count_ = 0;  // 重置开火次数
 
         enter_belt_wait_zero_velocity_mode();
         *lifting_command_ = rmcs_msgs::DartSliderStatus::WAIT;
         *limiting_command_ = rmcs_msgs::DartLimitingServoStatus::LOCK;
         *yaw_pitch_control_velocity_ = Eigen::Vector2d::Zero();
-        *force_control_velocity_ = 0.0;
+        *force_control_velocity_ = 0.0; // 停止丝杆电机（已包含）
         clear_auto_aim_feedback();
 
         transition_to(State::IDLE);
@@ -398,7 +443,7 @@ private:
         *lifting_command_ = rmcs_msgs::DartSliderStatus::WAIT;
         *limiting_command_ = rmcs_msgs::DartLimitingServoStatus::LOCK;
         *yaw_pitch_control_velocity_ = Eigen::Vector2d::Zero();
-        *force_control_velocity_ = 0.0;
+        *force_control_velocity_ = 0.0; // 停止丝杆电机（已包含）
         clear_auto_aim_feedback();
 
         transition_to(State::ERROR);
@@ -625,6 +670,16 @@ private:
                 "down_velocity=%.2f rad/s",
                 belt_down_distance_, belt_pulley_radius_, down_velocity);
 
+            // 记录当前力值（用于下次fire前的力矩闭环）
+            if (current_force_ch1_.ready()) {
+                last_fire_force_ = static_cast<double>(*current_force_ch1_);
+                RCLCPP_INFO(
+                    logger_, "[DartManager] Recorded force before fire: %.2f (ch1=%d)",
+                    last_fire_force_, *current_force_ch1_);
+            } else {
+                RCLCPP_WARN(logger_, "[DartManager] Force sensor NOT READY, using last value");
+            }
+
             return std::make_shared<LaunchPreparationTask>(
                 *belt_command_, *belt_target_velocity_, *belt_torque_limit_, *belt_hold_torque_,
                 *belt_wait_zero_velocity_, *belt_torque_offset_, *left_belt_angle_,
@@ -639,12 +694,17 @@ private:
                 belt_up_distance_, belt_prepare_up_velocity_, belt_up_decel_target_velocity_,
                 belt_up_decel_torque_offset_, belt_up_stall_velocity_threshold_,
                 belt_up_stall_confirm_ticks_, belt_up_stall_min_run_ticks_,
-                belt_up_decel_timeout_ticks_, is_first_shot);
+                belt_up_decel_timeout_ticks_, *force_control_velocity_, *current_force_ch1_,
+                last_fire_force_, enable_force_calibration_, force_tolerance_, force_settle_ticks_,
+                force_timeout_ticks_, force_kp_, force_ki_, force_kd_, force_max_velocity_,
+                is_first_shot);
         }
 
         if (cmd == "unload" || cmd == "cancel_launch") {
             // 取消发射使用与准备发射相同的下行参数
             double down_velocity = belt_prepare_down_velocity_;
+            // 第一发时不需要升降上行（因为还没有下行过）
+            bool require_lifting_up = (fire_count_ > 0);
             return std::make_shared<CancelLaunchTask>(
                 *belt_command_, *belt_target_velocity_, *belt_torque_limit_, *belt_hold_torque_,
                 *belt_wait_zero_velocity_, *belt_torque_offset_, *left_belt_angle_,
@@ -655,7 +715,7 @@ private:
                 belt_prepare_up_torque_limit_, belt_prepare_down_ramp_ticks_,
                 belt_prepare_down_hold_torque_, belt_prepare_down_zero_velocity_threshold_,
                 belt_prepare_down_zero_confirm_ticks_, belt_prepare_down_ramp_timeout_ticks_,
-                *belt_zero_calibration_);
+                *belt_zero_calibration_, require_lifting_up);
         }
 
         if (cmd == "fire") {
@@ -705,6 +765,10 @@ private:
     // 升降速度反馈（FillingLiftAction 堵转检测用）
     InputInterface<double> lifting_left_vel_fb_;
     InputInterface<double> lifting_right_vel_fb_;
+
+    // 力传感器反馈（两个通道）
+    InputInterface<int> current_force_ch1_;
+    InputInterface<int> current_force_ch2_;
 
     OutputInterface<rmcs_msgs::DartSliderStatus> belt_command_;
     OutputInterface<double> belt_target_velocity_;
@@ -758,6 +822,17 @@ private:
     uint64_t lifting_stall_confirm_ticks_{100};
     uint64_t lifting_stall_min_run_ticks_{500};
     uint64_t lifting_stall_timeout_ticks_{5000};
+
+    // 力矩闭环参数
+    bool enable_force_calibration_{false};
+    double force_tolerance_{5.0};    // N
+    uint64_t force_settle_ticks_{50};
+    uint64_t force_timeout_ticks_{2000};
+    double force_kp_{0.1};
+    double force_ki_{0.0};
+    double force_kd_{0.01};
+    double force_max_velocity_{5.0}; // rad/s
+
     bool launch_prepare_enable_visual_assist_{false};
     AutoAimFeedback auto_aim_feedback_;
     DartLaunchSequence dart_launch_sequence_;
@@ -783,8 +858,9 @@ private:
     std::shared_ptr<Task> current_task_;
     std::deque<std::shared_ptr<Task>> task_queue_;
     bool first_fill_pending_{true};
-    uint32_t fire_count_{0};                        // 当前轮次已完成发射数
+    uint32_t fire_count_{0};         // 当前轮次已完成发射数
     bool first_tick_of_task_{true};
+    double last_fire_force_{0.0};    // 上次fire前记录的力值
 };
 
 } // namespace rmcs_dart_guidance::manager

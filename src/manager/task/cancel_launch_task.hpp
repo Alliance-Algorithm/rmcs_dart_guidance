@@ -4,7 +4,7 @@
 #include "manager/action/belt_constant_velocity_move_action.hpp"
 #include "manager/action/belt_hold_torque_action.hpp"
 #include "manager/action/belt_move_action.hpp"
-#include "manager/action/belt_velocity_ramp_action.hpp"
+#include "manager/action/belt_pid_deceleration_action.hpp"
 #include "manager/action/belt_zero_calibration.hpp"
 #include "manager/action/delay_action.hpp"
 #include "manager/action/filling_lift_action.hpp"
@@ -38,7 +38,7 @@ public:
         double down_velocity, double torque_limit, double up_torque_limit, uint64_t down_ramp_ticks,
         double down_hold_torque, double down_zero_velocity_threshold,
         uint64_t down_zero_confirm_ticks, uint64_t down_ramp_timeout_ticks,
-        bool& belt_zero_calibration)
+        bool& belt_zero_calibration, bool require_lifting_up = true)
         : Task("cancel_launch", "取消发射") {
 
         // 步骤1：传送带匀速下行到卸载位（使用速度控制+多圈角度反馈）
@@ -47,7 +47,9 @@ public:
                 "belt_move_down_constant_velocity", // 动作名称
                 belt_command,                       // 速度模式方向命令（输出）
                 belt_target_velocity,               // 目标速度（输出）
+                belt_torque_offset,                 // 力矩偏移（输出）
                 belt_torque_limit,                  // 扭矩限幅（输出）
+                0.0,
                 left_belt_angle,                    // 左电机角度反馈（输入）
                 right_belt_angle,                   // 右电机角度反馈（输入）
                 left_belt_velocity,                 // 左电机速度反馈（输入）
@@ -63,47 +65,44 @@ public:
                 200,                                // 堵转确认帧数
                 0.20));                             // 下行最大距离限制（m，正值）
 
-        // 步骤2：下行速度斜坡减速到 0，成功后自动进入 HOLD_TORQUE 保持张力
+        // 步骤2：PID减速阶段（目标速度=0，加常态力矩偏移补偿负载）
         then(
-            std::make_shared<BeltModerateAction>(
+            std::make_shared<BeltPIDDecelerationAction>(
                 "belt_down_ramp_to_zero",     // 动作名称
-                belt_command,                 // 速度模式方向命令（输出）
-                belt_target_velocity,         // 目标速度（输出）
-                belt_torque_limit,            // 力矩限幅（输出）
-                belt_hold_torque,             // 保持力矩（输出）
-                belt_wait_zero_velocity,      // WAIT 模式选择（输出）
-                left_belt_velocity,           // 左皮带速度反馈（输入）
-                right_belt_velocity,          // 右皮带速度反馈（输入）
-                down_ramp_ticks,              // 目标减速时长（ticks）
-                torque_limit,                 // 力矩限制
-                down_hold_torque,             // 进入 HOLD_TORQUE 的保持力矩
-                down_zero_velocity_threshold, // 实测零速阈值
+                belt_target_velocity,         // 目标速度（输出，设为0）
+                belt_torque_offset,           // 力矩偏移（输出）
+                left_belt_velocity,           // 左电机速度反馈（输入）
+                right_belt_velocity,          // 右电机速度反馈（输入）
+                down_hold_torque,             // 力矩偏移值（N⋅m）
+                down_zero_velocity_threshold, // 零速阈值（rad/s）
                 down_zero_confirm_ticks,      // 零速确认帧数
-                down_ramp_timeout_ticks,      // 斜坡阶段超时
-                down_velocity));              // 初始速度
+                down_ramp_timeout_ticks));    // 超时帧数
 
-        // 步骤3：传送带保持高扭矩 + 解锁扳机 + 升降上行并行
+        // 步骤3：传送带保持高扭矩 + 解锁扳机 + (可选)升降上行并行
         auto parallel_hold_unlock_and_lift =
             std::make_shared<ActionSet>("hold_unlock_and_lift", ActionSet::Policy::ALL_SUCCESS);
 
         parallel_hold_unlock_and_lift
             ->also(
                 std::make_shared<BeltHoldTorqueAction>(
-                    "belt_hold_torque",              // 动作名称
-                    belt_command,                    // 传送带命令（输出）
-                    belt_target_velocity,            // 目标速度（输出）
-                    belt_hold_torque,                // 保持力矩（输出）
-                    belt_wait_zero_velocity,         // WAIT模式选择（输出）
-                    belt_torque_offset,              // 力矩偏移（输出）
-                    down_hold_torque,                // 保持力矩值（N⋅m）
-                    2.5,                             // 力矩偏移值（N⋅m）- 取消发射不需要偏移
-                    2000))                           // 保持时长（ticks）
+                    "belt_hold_torque",      // 动作名称
+                    belt_command,            // 传送带命令（输出）
+                    belt_target_velocity,    // 目标速度（输出）
+                    belt_hold_torque,        // 保持力矩（输出）
+                    belt_wait_zero_velocity, // WAIT模式选择（输出）
+                    belt_torque_offset,      // 力矩偏移（输出）
+                    down_hold_torque,        // 保持力矩值（N⋅m）
+                    2.5,                     // 力矩偏移值（N⋅m）- 取消发射不需要偏移
+                    500))                    // 保持时长（ticks）
             .also(
                 std::make_shared<TriggerControlAction>(
-                    trigger_lock_enable,             // 扳机锁定使能（输出）
-                    false,                           // 解锁（false）
-                    1000))                           // 等待释放完成帧数
-            .also(
+                    trigger_lock_enable,     // 扳机锁定使能（输出）
+                    false,                   // 解锁（false）
+                    500));                   // 等待释放完成帧数
+
+        // 只有在需要时才添加升降上行动作（第二发及以后才需要）
+        if (require_lifting_up) {
+            parallel_hold_unlock_and_lift->also(
                 std::make_shared<FillingLiftAction>(
                     "filling_lift_up",               // 动作名称
                     lifting_command,                 // 升降指令（输出）
@@ -114,6 +113,8 @@ public:
                     100,                             // 堵转确认帧数
                     500,                             // 最短运行帧数
                     2000));                          // 超时帧数
+        }
+
         then(parallel_hold_unlock_and_lift);
 
         // 步骤4：同步带上行复位到机械限位

@@ -22,7 +22,8 @@ class BeltConstantVelocityMoveAction : public IAction {
 public:
     BeltConstantVelocityMoveAction(
         std::string name, rmcs_msgs::DartSliderStatus& belt_command, double& belt_target_velocity,
-        double& belt_torque_limit, const double& left_belt_angle, const double& right_belt_angle,
+        double& belt_torque_offset, double& belt_torque_limit, double torque_offset_value,
+        const double& left_belt_angle, const double& right_belt_angle,
         const double& left_belt_velocity, const double& right_belt_velocity,
         double target_distance,           // 目标距离（m，正=上行，负=下行）
         double pulley_radius,             // 滑轮半径（m）
@@ -35,7 +36,9 @@ public:
         : IAction(std::move(name))
         , belt_command_(belt_command)
         , belt_target_velocity_(belt_target_velocity)
+        , belt_torque_offset_(belt_torque_offset)
         , belt_torque_limit_(belt_torque_limit)
+        , torque_offset_value_(torque_offset_value)
         , left_belt_angle_(left_belt_angle)
         , right_belt_angle_(right_belt_angle)
         , left_belt_velocity_(left_belt_velocity)
@@ -86,12 +89,13 @@ public:
             belt_target_velocity_ = std::abs(velocity_);
         }
 
+        belt_torque_offset_ = torque_offset_value_;
         belt_torque_limit_ = torque_limit_;
     }
 
     ActionStatus update() override {
         if (elapsed_ticks() >= timeout_ticks_) {
-            return ActionStatus::FAILURE;
+            return ActionStatus::SUCCESS;
         }
 
         double avg_angle = (left_belt_angle_ + right_belt_angle_) / 2.0;
@@ -99,13 +103,12 @@ public:
         double avg_velocity =
             (std::abs(left_belt_velocity_) + std::abs(right_belt_velocity_)) / 2.0;
 
-        // 上行速度切换逻辑：在0.2m处从5.0切换到15.0
-        if (target_distance_ < 0) {           // 上行（负距离）
+        if (target_distance_ < 0) {                           // 上行（负距离）
             double distance_traveled = std::abs(avg_angle - initial_angle_) * pulley_radius_;
             if (distance_traveled < 0.2) {
-                belt_target_velocity_ = 5.0;  // 前0.2m慢速
+                belt_target_velocity_ = 5.0;                  // 前0.2m慢速
             } else {
-                belt_target_velocity_ = 15.0; // 0.2m后快速
+                belt_target_velocity_ = 15.0;                 // 0.2m后快速
             }
         }
 
@@ -139,7 +142,7 @@ public:
             if (avg_velocity < stall_velocity_threshold_) {
                 ++stall_counter_;
                 if (stall_counter_ >= stall_confirm_ticks_) {
-                    return ActionStatus::FAILURE;
+                    return ActionStatus::SUCCESS;
                 }
             } else {
                 stall_counter_ = 0;
@@ -149,12 +152,14 @@ public:
         return ActionStatus::RUNNING;
     }
 
-    void on_exit() override {}
+    void on_exit() override { belt_torque_offset_ = 0.0; }
 
 private:
     rmcs_msgs::DartSliderStatus& belt_command_;
     double& belt_target_velocity_;
+    double& belt_torque_offset_;
     double& belt_torque_limit_;
+    double torque_offset_value_;
     const double& left_belt_angle_;
     const double& right_belt_angle_;
     const double& left_belt_velocity_;

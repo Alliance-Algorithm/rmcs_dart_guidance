@@ -9,6 +9,7 @@
 #include "manager/action/belt_zero_calibration.hpp"
 #include "manager/action/delay_action.hpp"
 #include "manager/action/filling_lift_action.hpp"
+#include "manager/action/force_screw_calibration_action.hpp"
 #include "manager/action/trigger_control_action.hpp"
 #include "manager/task/task.hpp"
 
@@ -39,7 +40,10 @@ public:
         double up_decel_target_velocity, double up_decel_torque_offset,
         double up_stall_velocity_threshold, uint64_t up_stall_confirm_ticks,
         uint64_t up_stall_min_run_ticks, uint64_t up_decel_timeout_ticks,
-        bool is_first_shot = false)
+        double& force_screw_velocity, const int& current_force, double target_force,
+        bool enable_force_calibration, double force_tolerance, uint64_t force_settle_ticks,
+        uint64_t force_timeout_ticks, double force_kp, double force_ki, double force_kd,
+        double force_max_velocity, bool is_first_shot = false)
         : Task("launch_preparation", "发射准备（传送带下行 + 扳机锁定 + 上行复位）") {
 
         // 步骤1：传送带匀速下行到目标位置（使用速度控制+多圈角度反馈）
@@ -49,7 +53,9 @@ public:
                 "belt_move_down_constant_velocity", // 动作名称
                 belt_command,                       // 速度模式方向命令（输出）
                 belt_target_velocity,               // 目标速度（输出）
+                belt_torque_offset,                 // 力矩偏移（输出）
                 belt_torque_limit,                  // 扭矩限幅（输出）
+                0.0,                                // 力矩偏移值
                 left_belt_angle,                    // 左电机角度反馈（输入）
                 right_belt_angle,                   // 右电机角度反馈（输入）
                 left_belt_velocity,                 // 左电机速度反馈（输入）
@@ -63,9 +69,9 @@ public:
                 0.5,                                // 位置到达容差（rad）- 增大容差
                 0.3,                                // 堵转速度阈值（rad/s）
                 100,                                // 堵转确认帧数
-                0.60));                             // 下行最大距离限制（m，正值）
+                0.80));                             // 下行最大距离限制（m，正值）
 
-        // 步骤2：PID减速阶段（目标速度=0，加常态力矩偏移补偿负载）
+        // 步骤3：PID减速阶段（目标速度=0，加常态力矩偏移补偿负载）
         then(
             std::make_shared<BeltPIDDecelerationAction>(
                 "belt_pid_deceleration",      // 动作名称
@@ -75,8 +81,8 @@ public:
                 right_belt_velocity,          // 右电机速度反馈（输入）
                 down_torque_offset,           // 力矩偏移值（N⋅m）
                 down_zero_velocity_threshold, // 零速阈值（rad/s）
-                down_zero_confirm_ticks,      // 零速确认帧数
-                down_ramp_timeout_ticks));    // 超时帧数
+                100,                          // 零速确认帧数
+                1000));                       // 超时帧数
 
         // 步骤3：根据是否第一发选择不同的并行动作
         if (is_first_shot) {
@@ -86,22 +92,35 @@ public:
 
             parallel_hold_and_lock
                 ->also(
-                    std::make_shared<BeltHoldTorqueAction>(
-                        "belt_hold_torque",      // 动作名称
-                        belt_command,            // 传送带命令（输出）
-                        belt_target_velocity,    // 目标速度（输出）
-                        belt_hold_torque,        // 保持力矩（输出）
-                        belt_wait_zero_velocity, // WAIT模式选择（输出）
-                        belt_torque_offset,      // 力矩偏移（输出）
-                        down_hold_torque,        // 保持力矩值（N⋅m）
-                        down_torque_offset,      // 力矩偏移值（N⋅m）
-                        500))                    // 保持时长（ticks）
-                .also(
                     std::make_shared<TriggerControlAction>(
-                        trigger_lock_enable,     // 扳机锁定使能（输出）
-                        true,                    // 锁定（true）
-                        500));                   // 等待锁定完成帧数
+                        trigger_lock_enable,          // 扳机锁定使能（输出）
+                        true,                         // 锁定（true）
+                        750))
+                .also(
+                    std::make_shared<BeltPIDDecelerationAction>(
+                        "belt_pid_deceleration",      // 动作名称
+                        belt_target_velocity,         // 目标速度（输出，设为0）
+                        belt_torque_offset,           // 力矩偏移（输出）
+                        left_belt_velocity,           // 左电机速度反馈（输入）
+                        right_belt_velocity,          // 右电机速度反馈（输入）
+                        down_torque_offset,           // 力矩偏移值（N⋅m）
+                        down_zero_velocity_threshold, // 零速阈值（rad/s）
+                        10,                           // 零速确认帧数
+                        3000));                       // 超时帧数
             then(parallel_hold_and_lock);
+
+            then(
+                std::make_shared<BeltHoldTorqueAction>(
+                    "belt_hold_torque",               // 动作名称
+                    belt_command,                     // 传送带命令（输出）
+                    belt_target_velocity,             // 目标速度（输出）
+                    belt_hold_torque,                 // 保持力矩（输出）
+                    belt_wait_zero_velocity,          // WAIT模式选择（输出）
+                    belt_torque_offset,               // 力矩偏移（输出）
+                    down_hold_torque,                 // 保持力矩值（N⋅m）
+                    down_torque_offset,               // 力矩偏移值（N⋅m）
+                    500));                            // 保持时长（ticks）
+
         } else if (require_lifting_down) {
             // 第2-4发：传送带保持高扭矩 + 升降平台下行 + 扳机锁定并行
             auto parallel_hold_lock_and_lift =
@@ -152,12 +171,12 @@ public:
                         belt_torque_offset,      // 力矩偏移（输出）
                         down_hold_torque,        // 保持力矩值（N⋅m）
                         down_torque_offset,      // 力矩偏移值（N⋅m）
-                        500))                    // 保持时长（ticks）
+                        1000))                   // 保持时长（ticks）
                 .also(
                     std::make_shared<TriggerControlAction>(
                         trigger_lock_enable,     // 扳机锁定使能（输出）
                         true,                    // 锁定（true）
-                        500));                   // 等待锁定完成帧数
+                        1000));                  // 等待锁定完成帧数
             then(parallel_hold_and_lock);
         }
 
@@ -168,7 +187,9 @@ public:
                 "belt_reset_up_position", // 动作名称
                 belt_command,             // 速度模式方向命令（输出）
                 belt_target_velocity,     // 目标速度（输出）
+                belt_torque_offset,       // 力矩偏移（输出）
                 belt_torque_limit,        // 扭矩限幅（输出）
+                5.0,                      // 力矩偏移值
                 left_belt_angle,          // 左电机角度反馈（输入）
                 right_belt_angle,         // 右电机角度反馈（输入）
                 left_belt_velocity,       // 左电机速度反馈（输入）
@@ -177,7 +198,7 @@ public:
                 belt_pulley_radius,       // 滑轮半径（m）
                 up_velocity,              // 运动速度（rad/s）
                 up_torque_limit,          // 扭矩限制（N⋅m）
-                5000,                     // 超时帧数
+                15000,                    // 超时帧数
                 50,                       // 最小运行帧数
                 0.5,                      // 位置到达容差（rad）
                 0.3,                      // 堵转速度阈值（rad/s）
@@ -194,17 +215,37 @@ public:
                 right_belt_velocity,    // 右电机速度反馈（输入）
                 left_belt_torque,       // 左电机力矩反馈（输入）
                 right_belt_torque,      // 右电机力矩反馈（输入）
-                5.0,                    // 目标速度（rad/s）
+                2.0,                    // 目标速度（rad/s）
                 up_decel_torque_offset, // 力矩偏移（N⋅m）
-                0.1,                    // 堵转速度阈值（rad/s）
-                0.1,                    // 堵转扭矩阈值（N⋅m）
+                0.5,                    // 堵转速度阈值（rad/s）
+                0.5,                    // 堵转扭矩阈值（N⋅m）
                 100,                    // 堵转确认帧数
                 10,                     // 最小运行帧数
-                2000));                 // 超时帧数
+                5000));                 // 超时帧数
 
         then(std::make_shared<DelayAction>("stabilize_wait", 50));
 
         then(std::make_shared<ZeroCalibrationAction>(belt_zero_calibration));
+
+        // 力矩闭环：第一发使用固定目标力9525，后续发使用上次记录的力值
+        // if (enable_force_calibration) {
+        //     double target_force_value = is_first_shot ? 11300.0 : target_force;
+        //     double tolerance_value = is_first_shot ? 3.0 : force_tolerance;
+
+        //     then(
+        //         std::make_shared<ForceScrewCalibrationAction>(
+        //             "force_screw_calibration", // 动作名称
+        //             force_screw_velocity,      // 丝杆电机速度（输出）
+        //             current_force,             // 当前力传感器读数（输入）
+        //             target_force_value,        // 目标力值（第一发9025，后续用记录值）
+        //             tolerance_value,           // 力容差（第一发±30，后续用配置值）
+        //             force_settle_ticks,        // 稳定确认帧数
+        //             force_timeout_ticks,       // 超时帧数
+        //             force_kp,                  // PID参数Kp
+        //             force_ki,                  // PID参数Ki
+        //             force_kd,                  // PID参数Kd
+        //             force_max_velocity));      // 最大速度限制
+        // }
     }
 };
 
