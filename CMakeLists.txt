@@ -126,11 +126,17 @@ if(BUILD_TESTING)
     tests/dart_launch_sequence_test.cpp
   )
 
+  ament_add_gtest(
+    manual_force_control_test
+    tests/manual_force_control_test.cpp
+  )
+
   foreach(target
       auto_aim_action_test
       launch_preparation_task_test
       vision_assisted_launch_preparation_task_test
-      dart_launch_sequence_test)
+      dart_launch_sequence_test
+      manual_force_control_test)
     if(TARGET ${target})
       target_include_directories(${target} PRIVATE
         ${PROJECT_SOURCE_DIR}/src/

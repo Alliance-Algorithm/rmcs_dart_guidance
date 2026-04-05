@@ -57,6 +57,8 @@ public:
         register_input("/dart/drive_belt/right/angle", right_belt_angle_);
         register_input("/dart/lifting_left/velocity", lifting_left_vel_fb_);
         register_input("/dart/lifting_right/velocity", lifting_right_vel_fb_);
+        register_input("/dart/force_screw_motor/velocity", force_screw_velocity_fb_);
+        register_input("/dart/force_screw_motor/torque", force_screw_torque_fb_);
         register_input("/force_sensor/channel_1/weight", current_force_ch1_);
         register_input("/force_sensor/channel_2/weight", current_force_ch2_);
 
@@ -278,6 +280,30 @@ public:
             force_max_velocity_ = get_parameter("force_max_velocity").as_double();
         } catch (...) {
             force_max_velocity_ = 5.0; // rad/s
+        }
+        try {
+            force_stall_velocity_threshold_ =
+                get_parameter("force_stall_velocity_threshold").as_double();
+        } catch (...) {
+            force_stall_velocity_threshold_ = 0.15;
+        }
+        try {
+            force_stall_torque_threshold_ =
+                get_parameter("force_stall_torque_threshold").as_double();
+        } catch (...) {
+            force_stall_torque_threshold_ = 0.5;
+        }
+        try {
+            force_stall_confirm_ticks_ =
+                (uint64_t)get_parameter("force_stall_confirm_ticks").as_int();
+        } catch (...) {
+            force_stall_confirm_ticks_ = 100;
+        }
+        try {
+            force_stall_min_run_ticks_ =
+                (uint64_t)get_parameter("force_stall_min_run_ticks").as_int();
+        } catch (...) {
+            force_stall_min_run_ticks_ = 100;
         }
 
         state_pub_ = create_publisher<std_msgs::msg::UInt8>("/dart/manager/state", 10);
@@ -747,11 +773,25 @@ private:
         }
 
         if (cmd == "manual_force") {
+            const double* force_screw_velocity_feedback =
+                force_screw_velocity_fb_.ready() ? &*force_screw_velocity_fb_ : nullptr;
+            const double* force_screw_torque_feedback =
+                force_screw_torque_fb_.ready() ? &*force_screw_torque_fb_ : nullptr;
+
+            if (force_screw_velocity_feedback == nullptr || force_screw_torque_feedback == nullptr) {
+                RCLCPP_WARN(
+                    logger_,
+                    "[DartManager] force screw feedback not ready, manual_force stall detection disabled");
+            }
+
             auto task = std::make_shared<Task>("manual_force", "手动力丝杆速度调整");
             task->then(
                 std::make_shared<DartManualForceControlAction>(
                     *force_control_velocity_, *joystick_right_, max_transform_rate_,
-                    manual_force_scale_));
+                    manual_force_scale_, force_screw_velocity_feedback,
+                    force_screw_torque_feedback, force_stall_velocity_threshold_,
+                    force_stall_torque_threshold_, force_stall_confirm_ticks_,
+                    force_stall_min_run_ticks_));
             return task;
         }
         return nullptr;
@@ -774,6 +814,8 @@ private:
     // 升降速度反馈（FillingLiftAction 堵转检测用）
     InputInterface<double> lifting_left_vel_fb_;
     InputInterface<double> lifting_right_vel_fb_;
+    InputInterface<double> force_screw_velocity_fb_;
+    InputInterface<double> force_screw_torque_fb_;
 
     // 力传感器反馈（两个通道）
     InputInterface<int> current_force_ch1_;
@@ -843,6 +885,10 @@ private:
     double force_ki_{0.0};
     double force_kd_{0.01};
     double force_max_velocity_{5.0}; // rad/s
+    double force_stall_velocity_threshold_{0.15};
+    double force_stall_torque_threshold_{0.5};
+    uint64_t force_stall_confirm_ticks_{100};
+    uint64_t force_stall_min_run_ticks_{100};
 
     bool launch_prepare_enable_visual_assist_{false};
     AutoAimFeedback auto_aim_feedback_;
