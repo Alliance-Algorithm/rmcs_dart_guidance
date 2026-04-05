@@ -76,6 +76,8 @@ public:
         register_output("/dart/manager/belt/torque_offset", belt_torque_offset_, 0.0);
         register_output("/dart/manager/belt/wait_zero_velocity", belt_wait_zero_velocity_, false);
         register_output("/dart/manager/belt/zero_calibration", belt_zero_calibration_, false);
+        register_output("/dart/manager/belt/error_gain", belt_error_gain_, 1.0);
+        register_output("/dart/manager/belt/use_decel_pid", belt_use_decel_pid_, false);
         register_output("/dart/manager/trigger/lock_enable", trigger_lock_enable_, false);
 
         register_output(
@@ -172,7 +174,7 @@ public:
             belt_prepare_down_zero_confirm_ticks_ =
                 (uint64_t)get_parameter("belt_prepare_down_zero_confirm_ticks").as_int();
         } catch (...) {
-            belt_prepare_down_zero_confirm_ticks_ = 60;
+            belt_prepare_down_zero_confirm_ticks_ = 80;
         }
         try {
             belt_prepare_down_ramp_timeout_ticks_ =
@@ -348,13 +350,20 @@ private:
         }
 
         first_fill_pending_ = true;
-        fire_count_ = 0;  // 重置开火次数
+        fire_count_ = 0; // 重置开火次数
 
-        enter_belt_wait_zero_velocity_mode();
+        *belt_command_ = rmcs_msgs::DartSliderStatus::WAIT;
+        *belt_target_velocity_ = 0.0;
+        *belt_torque_limit_ = 0.0;
+        *belt_hold_torque_ = 0.0;
+        *belt_torque_offset_ = 0.0;
+        *belt_wait_zero_velocity_ = false;
+        *belt_error_gain_ = 1.0;
+        *belt_use_decel_pid_ = false;
         *lifting_command_ = rmcs_msgs::DartSliderStatus::WAIT;
         *limiting_command_ = rmcs_msgs::DartLimitingServoStatus::LOCK;
         *yaw_pitch_control_velocity_ = Eigen::Vector2d::Zero();
-        *force_control_velocity_ = 0.0; // 停止丝杆电机（已包含）
+        *force_control_velocity_ = 0.0;
         clear_auto_aim_feedback();
 
         transition_to(State::IDLE);
@@ -682,20 +691,20 @@ private:
 
             return std::make_shared<LaunchPreparationTask>(
                 *belt_command_, *belt_target_velocity_, *belt_torque_limit_, *belt_hold_torque_,
-                *belt_wait_zero_velocity_, *belt_torque_offset_, *left_belt_angle_,
-                *right_belt_angle_, *left_belt_velocity_, *right_belt_velocity_, *left_belt_torque_,
-                *right_belt_torque_, *trigger_lock_enable_, belt_down_distance_,
-                belt_pulley_radius_, down_velocity, belt_prepare_torque_limit_,
-                belt_prepare_up_torque_limit_, belt_prepare_down_ramp_ticks_,
+                *belt_wait_zero_velocity_, *belt_torque_offset_, *belt_error_gain_,
+                *belt_use_decel_pid_, *left_belt_angle_, *right_belt_angle_, *left_belt_velocity_,
+                *right_belt_velocity_, *left_belt_torque_, *right_belt_torque_,
+                *trigger_lock_enable_, belt_down_distance_, belt_pulley_radius_, down_velocity,
+                belt_prepare_torque_limit_, belt_prepare_up_torque_limit_,
                 belt_prepare_down_torque_offset_, belt_prepare_down_hold_torque_,
                 belt_prepare_down_zero_velocity_threshold_, belt_prepare_down_zero_confirm_ticks_,
                 belt_prepare_down_ramp_timeout_ticks_, require_lifting_down, *lifting_command_,
                 *lifting_left_vel_fb_, *lifting_right_vel_fb_, *belt_zero_calibration_,
-                belt_up_distance_, belt_prepare_up_velocity_, belt_up_decel_target_velocity_,
-                belt_up_decel_torque_offset_, belt_up_stall_velocity_threshold_,
-                belt_up_stall_confirm_ticks_, belt_up_stall_min_run_ticks_,
-                belt_up_decel_timeout_ticks_, *force_control_velocity_, *current_force_ch1_,
-                last_fire_force_, enable_force_calibration_, force_tolerance_, force_settle_ticks_,
+                belt_up_distance_, belt_up_decel_target_velocity_, belt_up_decel_torque_offset_,
+                belt_up_stall_velocity_threshold_, belt_up_stall_confirm_ticks_,
+                belt_up_stall_min_run_ticks_, belt_up_decel_timeout_ticks_,
+                *force_control_velocity_, *current_force_ch1_, last_fire_force_,
+                enable_force_calibration_, force_tolerance_, force_settle_ticks_,
                 force_timeout_ticks_, force_kp_, force_ki_, force_kd_, force_max_velocity_,
                 is_first_shot);
         }
@@ -707,12 +716,12 @@ private:
             bool require_lifting_up = (fire_count_ > 0);
             return std::make_shared<CancelLaunchTask>(
                 *belt_command_, *belt_target_velocity_, *belt_torque_limit_, *belt_hold_torque_,
-                *belt_wait_zero_velocity_, *belt_torque_offset_, *left_belt_angle_,
-                *right_belt_angle_, *left_belt_velocity_, *right_belt_velocity_, *left_belt_torque_,
-                *right_belt_torque_, *trigger_lock_enable_, *lifting_command_,
-                *lifting_left_vel_fb_, *lifting_right_vel_fb_, belt_down_distance_,
-                belt_pulley_radius_, down_velocity, belt_prepare_torque_limit_,
-                belt_prepare_up_torque_limit_, belt_prepare_down_ramp_ticks_,
+                *belt_wait_zero_velocity_, *belt_torque_offset_, *belt_error_gain_,
+                *belt_use_decel_pid_, *left_belt_angle_, *right_belt_angle_, *left_belt_velocity_,
+                *right_belt_velocity_, *left_belt_torque_, *right_belt_torque_,
+                *trigger_lock_enable_, *lifting_command_, *lifting_left_vel_fb_,
+                *lifting_right_vel_fb_, belt_down_distance_, belt_pulley_radius_, down_velocity,
+                belt_prepare_torque_limit_, belt_prepare_up_torque_limit_,
                 belt_prepare_down_hold_torque_, belt_prepare_down_zero_velocity_threshold_,
                 belt_prepare_down_zero_confirm_ticks_, belt_prepare_down_ramp_timeout_ticks_,
                 *belt_zero_calibration_, require_lifting_up);
@@ -777,6 +786,8 @@ private:
     OutputInterface<double> belt_torque_offset_;
     OutputInterface<bool> belt_wait_zero_velocity_;
     OutputInterface<bool> belt_zero_calibration_;
+    OutputInterface<double> belt_error_gain_;
+    OutputInterface<bool> belt_use_decel_pid_;
     OutputInterface<bool> trigger_lock_enable_;
 
     OutputInterface<Eigen::Vector2d> yaw_pitch_control_velocity_;

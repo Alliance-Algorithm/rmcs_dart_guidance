@@ -2,9 +2,9 @@
 
 #include "manager/action/action_set.hpp"
 #include "manager/action/belt_constant_velocity_move_action.hpp"
+#include "manager/action/belt_deceleration_action.hpp"
 #include "manager/action/belt_hold_torque_action.hpp"
 #include "manager/action/belt_move_action.hpp"
-#include "manager/action/belt_pid_deceleration_action.hpp"
 #include "manager/action/belt_zero_calibration.hpp"
 #include "manager/action/delay_action.hpp"
 #include "manager/action/filling_lift_action.hpp"
@@ -30,12 +30,13 @@ public:
     CancelLaunchTask(
         rmcs_msgs::DartSliderStatus& belt_command, double& belt_target_velocity,
         double& belt_torque_limit, double& belt_hold_torque, bool& belt_wait_zero_velocity,
-        double& belt_torque_offset, const double& left_belt_angle, const double& right_belt_angle,
+        double& belt_torque_offset, double& belt_error_gain, bool& belt_use_decel_pid,
+        const double& left_belt_angle, const double& right_belt_angle,
         const double& left_belt_velocity, const double& right_belt_velocity,
         const double& left_belt_torque, const double& right_belt_torque, bool& trigger_lock_enable,
         rmcs_msgs::DartSliderStatus& lifting_command, const double& lifting_left_vel_fb,
         const double& lifting_right_vel_fb, double belt_down_distance, double belt_pulley_radius,
-        double down_velocity, double torque_limit, double up_torque_limit, uint64_t down_ramp_ticks,
+        double down_velocity, double torque_limit, double up_torque_limit,
         double down_hold_torque, double down_zero_velocity_threshold,
         uint64_t down_zero_confirm_ticks, uint64_t down_ramp_timeout_ticks,
         bool& belt_zero_calibration, bool require_lifting_up = true)
@@ -65,17 +66,29 @@ public:
                 200,                                // 堵转确认帧数
                 0.20));                             // 下行最大距离限制（m，正值）
 
-        // 步骤2：PID减速阶段（目标速度=0，加常态力矩偏移补偿负载）
+        // 步骤2：减速阶段（目标速度=0，加常态力矩偏移补偿负载，使用零速检测）
         then(
-            std::make_shared<BeltPIDDecelerationAction>(
+            std::make_shared<BeltDecelerationAction>(
                 "belt_down_ramp_to_zero",     // 动作名称
-                belt_target_velocity,         // 目标速度（输出，设为0）
+                belt_target_velocity,         // 目标速度（输出）
                 belt_torque_offset,           // 力矩偏移（输出）
+                belt_error_gain,              // 误差增益（输出）
+                belt_use_decel_pid,           // 使用减速PID（输出）
                 left_belt_velocity,           // 左电机速度反馈（输入）
                 right_belt_velocity,          // 右电机速度反馈（输入）
+                left_belt_torque,             // 左电机力矩反馈（输入）
+                right_belt_torque,            // 右电机力矩反馈（输入）
+                0.0,                          // 目标速度（rad/s）
                 down_hold_torque,             // 力矩偏移值（N⋅m）
+                2.0,                          // 误差增益倍数
+                true,                         // 启用堵转检测
+                true,                         // 启用零速检测
+                0.3,                          // 堵转速度阈值（rad/s）
+                1.0,                          // 堵转扭矩阈值（N⋅m）
                 down_zero_velocity_threshold, // 零速阈值（rad/s）
+                50,                           // 堵转确认帧数
                 down_zero_confirm_ticks,      // 零速确认帧数
+                50,                           // 最小运行帧数
                 down_ramp_timeout_ticks));    // 超时帧数
 
         // 步骤3：传送带保持高扭矩 + 解锁扳机 + (可选)升降上行并行

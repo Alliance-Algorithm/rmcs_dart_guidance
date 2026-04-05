@@ -15,7 +15,7 @@ namespace rmcs_dart_guidance::manager {
 //   完成条件：到达目标位置（基于多圈角度反馈）
 //   优点：避免PID error过大导致的问题，运动更平滑
 //
-//   重要：目标位置基于初始化后的实际角度计算，而非概念上的"零点"
+//   重要：目标位置基于初始化后的实际角度计算
 //   - 输入参数是距离（m），在函数内换算为角度（rad）
 //   - 目标位置 = 初始角度 + (目标距离 / 滑轮半径)
 class BeltConstantVelocityMoveAction : public IAction {
@@ -32,7 +32,7 @@ public:
         uint64_t timeout_ticks, uint64_t min_running_ticks = 50,
         double position_tolerance = 0.01, // 位置到达容差（rad）
         double stall_velocity_threshold = 0.3, uint64_t stall_confirm_ticks = 200,
-        double max_down_distance = 0.60)  // 下行最大距离限制（m，正值，防止过度下行）
+        double max_down_distance = 0.80)  // 下行最大距离限制（m，正值，防止过度下行）
         : IAction(std::move(name))
         , belt_command_(belt_command)
         , belt_target_velocity_(belt_target_velocity)
@@ -61,7 +61,6 @@ public:
         initial_angle_ = left_belt_angle_;
 
         // 将目标距离（m）换算为角度偏移（rad）
-        // angle_offset = distance / radius
         double target_angle_offset = target_distance_ / pulley_radius_;
 
         // 计算实际目标位置 = 初始角度 + 角度偏移
@@ -113,11 +112,6 @@ public:
         }
 
         // 位置到达判断（优先级最高）
-        // 判断条件：
-        // 1. 在容差范围内：|error| < tolerance
-        // 2. 或者已经越过目标（考虑运动方向）：
-        //    - 下行（target > initial）：error < 0 表示已经越过（current > target）
-        //    - 上行（target < initial）：error > 0 表示已经越过（current < target）
         if (elapsed_ticks() > min_running_ticks_) {
             bool within_tolerance = std::abs(position_error) < position_tolerance_;
             bool overshot = false;
