@@ -94,7 +94,7 @@ public:
                 50,                           // 堵转确认帧数
                 down_zero_confirm_ticks,      // 零速确认帧数
                 50,                           // 最小运行帧数
-                down_ramp_timeout_ticks));    // 超时帧数
+                800));                        // 超时帧数
 
         // 步骤3：根据是否第一发选择不同的并行动作
         // if (is_first_shot) {
@@ -195,7 +195,7 @@ public:
                 right_belt_angle,        // 右电机角度反馈（输入）
                 belt_pulley_radius,      // 滑轮半径（m）
                 5.0,                     // 慢速（rad/s）
-                5.0,                     // 力矩偏移值（N⋅m）
+                3.0,                     // 力矩偏移值（N⋅m）
                 up_torque_limit,         // 扭矩限制（N⋅m）
                 0.05,                    // 加速距离（m）
                 5000));                  // 超时帧数
@@ -223,7 +223,7 @@ public:
                 0.5,                       // 位置到达容差（rad）
                 0.3,                       // 堵转速度阈值（rad/s）
                 100,                       // 堵转确认帧数
-                0.80));                    // 下行最大距离限制（m，正值）
+                0.90));                    // 下行最大距离限制（m，正值）
 
         // 步骤4c：上行减速+堵转检测（堵转标志成功，作为下次下行起点，无力矩偏移）
         then(
@@ -238,7 +238,7 @@ public:
                 left_belt_torque,            // 左电机力矩反馈（输入）
                 right_belt_torque,           // 右电机力矩反馈（输入）
                 up_decel_target_velocity,    // 目标速度（rad/s）
-                up_decel_torque_offset,      // 力矩偏移值（无）
+                0.0,                         // 力矩偏移值（无）
                 1.0,                         // error增益倍数（正常）
                 true,                        // 启用堵转检测
                 false,                       // 不启用零速检测
@@ -248,7 +248,10 @@ public:
                 up_stall_confirm_ticks,      // 堵转确认帧数
                 100,                         // 零速确认帧数（未使用）
                 up_stall_min_run_ticks,      // 最小运行帧数
-                up_decel_timeout_ticks));    // 超时帧数
+                5000,                        // 超时帧数
+                &belt_command,               // 仅上行减速结束时显式下发 WAIT
+                &belt_wait_zero_velocity,    // 上行减速结束后显式进入 WAIT_ZERO
+                true));                      // 仅上行减速结束时显式下发 WAIT/0
 
         then(std::make_shared<DelayAction>("stabilize_wait", 50));
 

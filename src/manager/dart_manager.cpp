@@ -488,7 +488,10 @@ private:
         *belt_command_ = rmcs_msgs::DartSliderStatus::WAIT;
         *belt_target_velocity_ = 0.0;
         *belt_hold_torque_ = 0.0;
+        *belt_torque_offset_ = 0.0;
         *belt_wait_zero_velocity_ = true;
+        *belt_error_gain_ = 1.0;
+        *belt_use_decel_pid_ = false;
     }
 
     void transition_to(State new_state) {

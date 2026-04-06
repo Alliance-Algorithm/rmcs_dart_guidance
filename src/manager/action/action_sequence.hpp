@@ -46,36 +46,34 @@ public:
         if (cursor_ >= actions_.size())
             return ActionStatus::SUCCESS;
 
-        auto& action_ptr = actions_[cursor_];
-        if (!action_ptr) {
-            // Defensive check: if somehow a null action got in, skip it
-            ++cursor_;
-            first_tick_of_current_ = true;
-            return ActionStatus::RUNNING;
-        }
-        auto& current = *action_ptr;
-
-        // 首帧调用 tick_first，后续调用 tick
-        ActionStatus status = first_tick_of_current_ ? current.tick_first() : current.tick();
-        first_tick_of_current_ = false;
-
-        if (status == ActionStatus::SUCCESS) {
-            current.on_exit();
-            ++cursor_;
-            if (cursor_ >= actions_.size()) {
-                return ActionStatus::SUCCESS;
+        while (cursor_ < actions_.size()) {
+            auto& action_ptr = actions_[cursor_];
+            if (!action_ptr) {
+                ++cursor_;
+                first_tick_of_current_ = true;
+                continue;
             }
-            // 下一个动作首帧标记
-            first_tick_of_current_ = true;
+
+            auto& current = *action_ptr;
+            ActionStatus status = first_tick_of_current_ ? current.tick_first() : current.tick();
+            first_tick_of_current_ = false;
+
+            if (status == ActionStatus::SUCCESS) {
+                current.on_exit();
+                ++cursor_;
+                first_tick_of_current_ = true;
+                continue;
+            }
+
+            if (status == ActionStatus::FAILURE) {
+                current.cancel();
+                return ActionStatus::FAILURE;
+            }
+
             return ActionStatus::RUNNING;
         }
 
-        if (status == ActionStatus::FAILURE) {
-            current.cancel();
-            return ActionStatus::FAILURE;
-        }
-
-        return ActionStatus::RUNNING;
+        return ActionStatus::SUCCESS;
     }
 
     void on_exit() override {

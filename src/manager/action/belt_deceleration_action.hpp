@@ -1,6 +1,9 @@
 #pragma once
 
 #include "action.hpp"
+
+#include <rmcs_msgs/dart_slider_status.hpp>
+
 #include <cmath>
 #include <cstdint>
 
@@ -37,7 +40,9 @@ public:
         double stall_velocity_threshold = 0.5, double stall_torque_threshold = 0.5,
         double zero_velocity_threshold = 0.1, uint64_t stall_confirm_ticks = 100,
         uint64_t zero_confirm_ticks = 100, uint64_t min_running_ticks = 50,
-        uint64_t timeout_ticks = 3000)
+        uint64_t timeout_ticks = 3000,
+        rmcs_msgs::DartSliderStatus* belt_command = nullptr,
+        bool* belt_wait_zero_velocity = nullptr, bool send_wait_zero_on_exit = false)
         : IAction(std::move(name))
         , belt_target_velocity_(belt_target_velocity)
         , belt_torque_offset_(belt_torque_offset)
@@ -58,7 +63,10 @@ public:
         , stall_confirm_ticks_(stall_confirm_ticks)
         , zero_confirm_ticks_(zero_confirm_ticks)
         , min_running_ticks_(min_running_ticks)
-        , timeout_ticks_(timeout_ticks) {}
+        , timeout_ticks_(timeout_ticks)
+        , belt_command_(belt_command)
+        , belt_wait_zero_velocity_(belt_wait_zero_velocity)
+        , send_wait_zero_on_exit_(send_wait_zero_on_exit) {}
 
     void on_enter() override {
         belt_target_velocity_ = target_velocity_;
@@ -113,6 +121,13 @@ public:
     }
 
     void on_exit() override {
+        if (send_wait_zero_on_exit_ && belt_command_ != nullptr) {
+            *belt_command_ = rmcs_msgs::DartSliderStatus::WAIT;
+            belt_target_velocity_ = 0.0;
+            if (belt_wait_zero_velocity_ != nullptr) {
+                *belt_wait_zero_velocity_ = true;
+            }
+        }
         belt_torque_offset_ = 0.0;
         belt_error_gain_ = 1.0;
         belt_use_decel_pid_ = false;  // 恢复正常PID参数
@@ -140,6 +155,9 @@ private:
     uint64_t zero_confirm_ticks_;
     uint64_t min_running_ticks_;
     uint64_t timeout_ticks_;
+    rmcs_msgs::DartSliderStatus* belt_command_;
+    bool* belt_wait_zero_velocity_;
+    bool send_wait_zero_on_exit_;
 
     uint64_t stall_counter_{0};
     uint64_t zero_counter_{0};

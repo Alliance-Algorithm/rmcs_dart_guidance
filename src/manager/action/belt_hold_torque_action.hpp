@@ -45,10 +45,7 @@ public:
         return ActionStatus::RUNNING;
     }
 
-    void on_exit() override {
-        belt_torque_offset_ = 0.0;      // 退出时清除扭矩偏移
-        belt_wait_zero_velocity_ = false; // 退出零速度闭环模式
-    }
+    void on_exit() override {}
 
 private:
     rmcs_msgs::DartSliderStatus& belt_command_;
