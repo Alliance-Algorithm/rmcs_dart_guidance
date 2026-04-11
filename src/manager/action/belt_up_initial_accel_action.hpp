@@ -19,7 +19,7 @@ public:
         std::string name, rmcs_msgs::DartSliderStatus& belt_command, double& belt_target_velocity,
         double& belt_torque_offset, double& belt_torque_limit, double& belt_error_gain,
         bool& belt_use_decel_pid, const double& left_belt_angle, const double& right_belt_angle,
-        double pulley_radius, double slow_velocity, double torque_offset_value, double torque_limit,
+        double pulley_radius, double slow_velocity, const double& torque_offset_value, double torque_limit,
         double accel_distance = 0.1, uint64_t timeout_ticks = 5000)
         : IAction(std::move(name))
         , belt_command_(belt_command)
@@ -76,7 +76,7 @@ private:
 
     double pulley_radius_;
     double slow_velocity_;
-    double torque_offset_value_;
+    const double& torque_offset_value_;
     double torque_limit_;
     double accel_distance_;
     uint64_t timeout_ticks_;

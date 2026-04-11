@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <memory>
 
+#include <rclcpp/logger.hpp>
 #include <rmcs_msgs/dart_slider_status.hpp>
 
 namespace rmcs_dart_guidance::manager {
@@ -43,7 +44,8 @@ public:
         const int& current_force_ch2, int force_channel, double target_force,
         bool enable_force_calibration, double force_tolerance, uint64_t force_settle_ticks,
         uint64_t force_timeout_ticks, double force_kp, double force_ki, double force_kd,
-        double force_max_velocity, bool is_first_shot = false)
+        double force_max_velocity, bool is_first_shot = false, double belt_torque_scale = 0.0005,
+        const rclcpp::Logger& logger = rclcpp::get_logger("launch_preparation_task"))
         : Task("launch_preparation", "发射准备（传送带下行 + 扳机锁定 + 上行复位）") {
 
         // 步骤1：传送带匀速下行到目标位置（使用速度控制+多圈角度反馈）
@@ -71,7 +73,8 @@ public:
                 100,                                // 堵转确认帧数
                 0.80));                             // 下行最大距离限制（m，正值）
 
-        // 步骤2：减速阶段（目标速度=0，加常态力矩偏移补偿负载，使用减速PID+error增益）
+        // 步骤2：减速阶段（目标速度=0，加自适应力矩偏移补偿负载，使用减速PID+error增益）
+        // on_enter_hook 在减速启动的同一帧内采样力传感器，计算三个阶段的自适应补偿值
         // 同时启用零速检测和堵转检测：正常减速到0或碰到机械限位都能成功
         then(
             std::make_shared<BeltDecelerationAction>(
@@ -85,8 +88,8 @@ public:
                 left_belt_torque,             // 左电机力矩反馈（输入）
                 right_belt_torque,            // 右电机力矩反馈（输入）
                 0.0,                          // 目标速度（rad/s）
-                down_torque_offset,           // 力矩偏移值（N⋅m）
-                5.0,                          // error增益倍数（2倍）
+                adaptive_decel_offset_,       // 力矩偏移值（N⋅m，自适应）
+                5.0,                          // error增益倍数
                 true,                         // 启用堵转检测（碰到机械限位）
                 true,                         // 启用零速检测（正常减速到0）
                 0.3,                          // 堵转速度阈值（rad/s）
@@ -95,7 +98,17 @@ public:
                 50,                           // 堵转确认帧数
                 down_zero_confirm_ticks,      // 零速确认帧数
                 50,                           // 最小运行帧数
-                800));                        // 超时帧数
+                800,                          // 超时帧数
+                nullptr, nullptr, false,
+                [this, &current_force_ch1, &current_force_ch2, force_channel, belt_torque_scale,
+                 logger]() {
+                    double force_g = static_cast<double>(
+                        force_channel == 2 ? current_force_ch2 : current_force_ch1);
+                    double base = force_g * belt_torque_scale;
+                    adaptive_decel_offset_ = base * 0.75;
+                    adaptive_hold_offset_ = base * 1.0;
+                    adaptive_up_accel_offset_ = base * 0.5;
+                }));
 
         if (require_lifting_down) {
             // 第2-4发：传送带保持高扭矩 + 升降平台下行 + 扳机锁定并行
@@ -112,7 +125,7 @@ public:
                         belt_wait_zero_velocity,           // WAIT模式选择（输出）
                         belt_torque_offset,                // 力矩偏移（输出）
                         down_hold_torque,                  // 保持力矩值（N⋅m）
-                        down_torque_offset,                // 力矩偏移值（N⋅m）
+                        adaptive_hold_offset_,             // 力矩偏移值（N⋅m，自适应）
                         1000))                             // 保持时长（ticks）
                 .also(
                     std::make_shared<TriggerControlAction>(
@@ -146,7 +159,7 @@ public:
                         belt_wait_zero_velocity, // WAIT模式选择（输出）
                         belt_torque_offset,      // 力矩偏移（输出）
                         down_hold_torque,        // 保持力矩值（N⋅m）
-                        down_torque_offset,      // 力矩偏移值（N⋅m）
+                        adaptive_hold_offset_,   // 力矩偏移值（N⋅m，自适应）
                         1000))                   // 保持时长（ticks）
                 .also(
                     std::make_shared<TriggerControlAction>(
@@ -159,21 +172,21 @@ public:
         // 步骤4a：上行初始加速阶段（前0.2m慢速 + 常态力矩偏移）
         then(
             std::make_shared<BeltUpInitialAccelAction>(
-                "belt_up_initial_accel", // 动作名称
-                belt_command,            // 速度模式方向命令（输出）
-                belt_target_velocity,    // 目标速度（输出）
-                belt_torque_offset,      // 力矩偏移（输出）
-                belt_torque_limit,       // 扭矩限幅（输出）
-                belt_error_gain,         // error增益（输出）
-                belt_use_decel_pid,      // 使用减速PID标志（输出）
-                left_belt_angle,         // 左电机角度反馈（输入）
-                right_belt_angle,        // 右电机角度反馈（输入）
-                belt_pulley_radius,      // 滑轮半径（m）
-                5.0,                     // 慢速（rad/s）
-                3.0,                     // 力矩偏移值（N⋅m）
-                up_torque_limit,         // 扭矩限制（N⋅m）
-                0.05,                    // 加速距离（m）
-                5000));                  // 超时帧数
+                "belt_up_initial_accel",   // 动作名称
+                belt_command,              // 速度模式方向命令（输出）
+                belt_target_velocity,      // 目标速度（输出）
+                belt_torque_offset,        // 力矩偏移（输出）
+                belt_torque_limit,         // 扭矩限幅（输出）
+                belt_error_gain,           // error增益（输出）
+                belt_use_decel_pid,        // 使用减速PID标志（输出）
+                left_belt_angle,           // 左电机角度反馈（输入）
+                right_belt_angle,          // 右电机角度反馈（输入）
+                belt_pulley_radius,        // 滑轮半径（m）
+                5.0,                       // 慢速（rad/s）
+                adaptive_up_accel_offset_, // 力矩偏移值（N⋅m，自适应）
+                up_torque_limit,           // 扭矩限制（N⋅m）
+                0.05,                      // 加速距离（m）
+                5000));                    // 超时帧数
 
         // 步骤4b：上行匀速阶段（到达目标位置前，无力矩偏移）
         // 目标位置 = 初始位置 - (belt_up_distance - 0.2)
@@ -245,6 +258,12 @@ public:
                     force_max_velocity));
         }
     }
+
+private:
+    // 自适应力矩补偿值（由步骤2的 on_enter_hook 在运行时写入，供步骤3/4a引用）
+    double adaptive_decel_offset_{0.0};
+    double adaptive_hold_offset_{0.0};
+    double adaptive_up_accel_offset_{0.0};
 };
 
 } // namespace rmcs_dart_guidance::manager

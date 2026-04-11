@@ -17,7 +17,7 @@ public:
     BeltHoldTorqueAction(
         std::string name, rmcs_msgs::DartSliderStatus& belt_command, double& belt_target_velocity,
         double& belt_hold_torque, bool& belt_wait_zero_velocity, double& belt_torque_offset,
-        double hold_torque_value, double torque_offset_value, uint64_t hold_duration_ticks)
+        double hold_torque_value, const double& torque_offset_value, uint64_t hold_duration_ticks)
         : IAction(std::move(name))
         , belt_command_(belt_command)
         , belt_target_velocity_(belt_target_velocity)
@@ -44,7 +44,10 @@ public:
         return ActionStatus::RUNNING;
     }
 
-    void on_exit() override {}
+    void on_exit() override {
+        belt_hold_torque_ = 0.0;
+        belt_torque_offset_ = 0.0;
+    }
 
 private:
     rmcs_msgs::DartSliderStatus& belt_command_;
@@ -53,7 +56,7 @@ private:
     bool& belt_wait_zero_velocity_;
     double& belt_torque_offset_;
     double hold_torque_value_;
-    double torque_offset_value_;
+    const double& torque_offset_value_;
     uint64_t hold_duration_ticks_;
 };
 

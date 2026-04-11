@@ -2,6 +2,7 @@
 
 #include "action.hpp"
 
+#include <functional>
 #include <rmcs_msgs/dart_slider_status.hpp>
 
 #include <cmath>
@@ -34,7 +35,7 @@ public:
         double& belt_error_gain, bool& belt_use_decel_pid,
         const double& left_belt_velocity, const double& right_belt_velocity,
         const double& left_belt_torque, const double& right_belt_torque,
-        double target_velocity = 0.0, double torque_offset_value = 0.0,
+        double target_velocity = 0.0, const double& torque_offset_value = kZero_,
         double error_gain_value = 2.0,  // 默认2倍error增益
         bool enable_stall_detection = false, bool enable_zero_velocity_detection = true,
         double stall_velocity_threshold = 0.5, double stall_torque_threshold = 0.5,
@@ -42,7 +43,8 @@ public:
         uint64_t zero_confirm_ticks = 100, uint64_t min_running_ticks = 50,
         uint64_t timeout_ticks = 3000,
         rmcs_msgs::DartSliderStatus* belt_command = nullptr,
-        bool* belt_wait_zero_velocity = nullptr, bool send_wait_zero_on_exit = false)
+        bool* belt_wait_zero_velocity = nullptr, bool send_wait_zero_on_exit = false,
+        std::function<void()> on_enter_hook = nullptr)
         : IAction(std::move(name))
         , belt_target_velocity_(belt_target_velocity)
         , belt_torque_offset_(belt_torque_offset)
@@ -66,9 +68,12 @@ public:
         , timeout_ticks_(timeout_ticks)
         , belt_command_(belt_command)
         , belt_wait_zero_velocity_(belt_wait_zero_velocity)
-        , send_wait_zero_on_exit_(send_wait_zero_on_exit) {}
+        , send_wait_zero_on_exit_(send_wait_zero_on_exit)
+        , on_enter_hook_(std::move(on_enter_hook)) {}
 
     void on_enter() override {
+        if (on_enter_hook_)
+            on_enter_hook_();
         belt_target_velocity_ = target_velocity_;
         belt_torque_offset_ = torque_offset_value_;
         belt_error_gain_ = error_gain_value_;
@@ -144,7 +149,7 @@ private:
     const double& right_belt_torque_;
 
     double target_velocity_;
-    double torque_offset_value_;
+    const double& torque_offset_value_;
     double error_gain_value_;
     bool enable_stall_detection_;
     bool enable_zero_velocity_detection_;
@@ -158,9 +163,12 @@ private:
     rmcs_msgs::DartSliderStatus* belt_command_;
     bool* belt_wait_zero_velocity_;
     bool send_wait_zero_on_exit_;
+    std::function<void()> on_enter_hook_;
 
     uint64_t stall_counter_{0};
     uint64_t zero_counter_{0};
+
+    static constexpr double kZero_ = 0.0;
 };
 
 } // namespace rmcs_dart_guidance::manager

@@ -316,6 +316,11 @@ public:
         } catch (...) {
             force_channel_ = 1;
         }
+        try {
+            belt_torque_scale_ = get_parameter("belt_torque_scale").as_double();
+        } catch (...) {
+            belt_torque_scale_ = 0.0005;
+        }
 
         state_pub_ = create_publisher<std_msgs::msg::UInt8>("/dart/manager/state", 10);
 
@@ -749,7 +754,7 @@ private:
                 *force_control_velocity_, *current_force_ch1_, *current_force_ch2_, force_channel_,
                 last_fire_force_, enable_force_calibration_, force_tolerance_, force_settle_ticks_,
                 force_timeout_ticks_, force_kp_, force_ki_, force_kd_, force_max_velocity_,
-                is_first_shot);
+                is_first_shot, belt_torque_scale_, get_logger());
         }
 
         if (cmd == "unload" || cmd == "cancel_launch") {
@@ -907,6 +912,7 @@ private:
     uint64_t force_stall_confirm_ticks_{100};
     uint64_t force_stall_min_run_ticks_{100};
     int force_channel_{1}; // 1 = ch1, 2 = ch2
+    double belt_torque_scale_{0.0005}; // N⋅m/g，传送带自适应力矩补偿倍率
 
     bool launch_prepare_enable_visual_assist_{false};
     AutoAimFeedback auto_aim_feedback_;
