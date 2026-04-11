@@ -305,6 +305,17 @@ public:
         } catch (...) {
             force_stall_min_run_ticks_ = 100;
         }
+        try {
+            force_channel_ = get_parameter("force_channel").as_int();
+            if (force_channel_ != 1 && force_channel_ != 2) {
+                RCLCPP_WARN(
+                    get_logger(), "[DartManager] force_channel=%d invalid, defaulting to 1",
+                    force_channel_);
+                force_channel_ = 1;
+            }
+        } catch (...) {
+            force_channel_ = 1;
+        }
 
         state_pub_ = create_publisher<std_msgs::msg::UInt8>("/dart/manager/state", 10);
 
@@ -708,12 +719,15 @@ private:
                 "down_velocity=%.2f rad/s",
                 belt_down_distance_, belt_pulley_radius_, down_velocity);
 
-            // 记录当前力值（用于下次fire前的力矩闭环）
-            if (current_force_ch1_.ready()) {
-                last_fire_force_ = static_cast<double>(*current_force_ch1_);
+            // 记录当前力值（用于下次fire前的力矩闭环，根据 force_channel_ 选择通道）
+            bool force_ready = (force_channel_ == 2) ? current_force_ch2_.ready()
+                                                     : current_force_ch1_.ready();
+            if (force_ready) {
+                last_fire_force_ = static_cast<double>(
+                    force_channel_ == 2 ? *current_force_ch2_ : *current_force_ch1_);
                 RCLCPP_INFO(
-                    logger_, "[DartManager] Recorded force before fire: %.2f (ch1=%d)",
-                    last_fire_force_, *current_force_ch1_);
+                    logger_, "[DartManager] Recorded force before fire: %.2f (ch%d)",
+                    last_fire_force_, force_channel_);
             } else {
                 RCLCPP_WARN(logger_, "[DartManager] Force sensor NOT READY, using last value");
             }
@@ -732,8 +746,8 @@ private:
                 belt_up_distance_, belt_up_decel_target_velocity_, belt_up_decel_torque_offset_,
                 belt_up_stall_velocity_threshold_, belt_up_stall_confirm_ticks_,
                 belt_up_stall_min_run_ticks_, belt_up_decel_timeout_ticks_,
-                *force_control_velocity_, *current_force_ch1_, last_fire_force_,
-                enable_force_calibration_, force_tolerance_, force_settle_ticks_,
+                *force_control_velocity_, *current_force_ch1_, *current_force_ch2_, force_channel_,
+                last_fire_force_, enable_force_calibration_, force_tolerance_, force_settle_ticks_,
                 force_timeout_ticks_, force_kp_, force_ki_, force_kd_, force_max_velocity_,
                 is_first_shot);
         }
@@ -892,6 +906,7 @@ private:
     double force_stall_torque_threshold_{0.5};
     uint64_t force_stall_confirm_ticks_{100};
     uint64_t force_stall_min_run_ticks_{100};
+    int force_channel_{1}; // 1 = ch1, 2 = ch2
 
     bool launch_prepare_enable_visual_assist_{false};
     AutoAimFeedback auto_aim_feedback_;

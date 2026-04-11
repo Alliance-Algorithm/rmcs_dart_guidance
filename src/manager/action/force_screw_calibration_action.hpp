@@ -11,13 +11,17 @@ namespace rmcs_dart_guidance::manager {
 //   电机正转力增大，反转力减小
 class ForceScrewCalibrationAction : public IAction {
 public:
+    // force_channel: 1 = ch1, 2 = ch2
     ForceScrewCalibrationAction(
-        std::string name, double& force_screw_velocity, const int& current_force,
-        double target_force, double force_tolerance, uint64_t settle_ticks, uint64_t timeout_ticks,
-        double kp, double ki, double kd, double max_velocity)
+        std::string name, double& force_screw_velocity, const int& current_force_ch1,
+        const int& current_force_ch2, int force_channel, double target_force,
+        double force_tolerance, uint64_t settle_ticks, uint64_t timeout_ticks, double kp,
+        double ki, double kd, double max_velocity)
         : IAction(std::move(name))
         , force_screw_velocity_(force_screw_velocity)
-        , current_force_(current_force)
+        , current_force_ch1_(current_force_ch1)
+        , current_force_ch2_(current_force_ch2)
+        , force_channel_(force_channel)
         , target_force_(target_force)
         , force_tolerance_(force_tolerance)
         , settle_ticks_(settle_ticks)
@@ -38,7 +42,9 @@ public:
             return ActionStatus::SUCCESS;
         }
 
-        double error = (target_force_ - static_cast<double>(current_force_)) * 5; // 增加响应速度
+        double current_force =
+            static_cast<double>(force_channel_ == 2 ? current_force_ch2_ : current_force_ch1_);
+        double error = (target_force_ - current_force) * 5; // 增加响应速度
 
         integral_ += error;
         double derivative = error - last_error_;
@@ -74,7 +80,9 @@ public:
 
 private:
     double& force_screw_velocity_;
-    const int& current_force_;
+    const int& current_force_ch1_;
+    const int& current_force_ch2_;
+    int force_channel_; // 1 = ch1, 2 = ch2
     double target_force_;
     double force_tolerance_;
     uint64_t settle_ticks_;

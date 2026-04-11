@@ -29,11 +29,10 @@ public:
         , hold_duration_ticks_(hold_duration_ticks) {}
 
     void on_enter() override {
-        // 设置WAIT命令和零速度闭环模式
         belt_command_ = rmcs_msgs::DartSliderStatus::WAIT;
         belt_target_velocity_ = 0.0;
         belt_hold_torque_ = hold_torque_value_;
-        belt_wait_zero_velocity_ = true; // 使用零速度闭环
+        belt_wait_zero_velocity_ = false; // 使用 HOLD_TORQUE 模式（常数力矩）
         belt_torque_offset_ = torque_offset_value_; // 叠加常态扭矩偏移补偿负载
     }
 
