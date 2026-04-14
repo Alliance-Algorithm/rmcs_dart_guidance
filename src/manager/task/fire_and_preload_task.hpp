@@ -22,8 +22,6 @@ public:
     FireAndPreloadTask(
         bool& trigger_lock_enable, rmcs_msgs::DartSliderStatus& lifting_command,
         const double& lifting_left_vel_fb, const double& lifting_right_vel_fb,
-        double lifting_stall_threshold, uint64_t lifting_stall_confirm_ticks,
-        uint64_t lifting_stall_min_run_ticks, uint64_t lifting_stall_timeout_ticks,
         rmcs_msgs::DartLimitingServoStatus& limiting_command, uint64_t preload_fill_ticks,
         bool is_first_shot = false)
         : Task("fire", "发射并预装填") {
@@ -52,10 +50,10 @@ public:
                     rmcs_msgs::DartSliderStatus::UP,          // 指令状态
                     lifting_left_vel_fb,                      // 左升降电机速度反馈（输入）
                     lifting_right_vel_fb,                     // 右升降电机速度反馈（输入）
-                    lifting_stall_threshold,                  // 堵转速度阈值
-                    lifting_stall_confirm_ticks,              // 堵转确认帧数
-                    lifting_stall_min_run_ticks,              // 最短运行帧数
-                    lifting_stall_timeout_ticks               // 超时帧数
+                    0.5,                                      // 堵转速度阈值
+                    100,                                      // 堵转确认帧数
+                    500,                                      // 最短运行帧数
+                    5000                                      // 超时帧数
                     ));
 
             then(

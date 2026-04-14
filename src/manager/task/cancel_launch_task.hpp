@@ -35,11 +35,10 @@ public:
         const double& left_belt_velocity, const double& right_belt_velocity,
         const double& left_belt_torque, const double& right_belt_torque, bool& trigger_lock_enable,
         rmcs_msgs::DartSliderStatus& lifting_command, const double& lifting_left_vel_fb,
-        const double& lifting_right_vel_fb, double belt_down_distance, double belt_pulley_radius,
-        double down_velocity, double torque_limit, double up_torque_limit,
-        double down_hold_torque, double down_zero_velocity_threshold,
-        uint64_t down_zero_confirm_ticks, uint64_t down_ramp_timeout_ticks,
-        bool& belt_zero_calibration, bool require_lifting_up = true)
+        const double& lifting_right_vel_fb, double belt_down_distance, double down_hold_torque,
+        double down_zero_velocity_threshold, uint64_t down_zero_confirm_ticks,
+        uint64_t down_ramp_timeout_ticks, bool& belt_zero_calibration,
+        bool require_lifting_up = true)
         : Task("cancel_launch", "取消发射") {
 
         // 步骤1：传送带匀速下行到卸载位（使用速度控制+多圈角度反馈）
@@ -56,15 +55,15 @@ public:
                 left_belt_velocity,                 // 左电机速度反馈（输入）
                 right_belt_velocity,                // 右电机速度反馈（输入）
                 +belt_down_distance,                // 目标距离（m，正值=下行）
-                belt_pulley_radius,                 // 滑轮半径（m）
-                down_velocity,                      // 运动速度（rad/s）
-                torque_limit,                       // 扭矩限制（N⋅m）
+                0.0195,                             // 滑轮半径（m）
+                10,                                 // 运动速度（rad/s）
+                10,                                 // 扭矩限制（N⋅m）
                 10000,                              // 超时帧数
                 100,                                // 最小运行帧数
                 0.5,                                // 位置到达容差（rad）- 增大容差
                 0.3,                                // 堵转速度阈值（rad/s）
                 200,                                // 堵转确认帧数
-                0.20));                             // 下行最大距离限制（m，正值）
+                0.80));                             // 下行最大距离限制（m，正值）
 
         // 步骤2：减速阶段（目标速度=0，加常态力矩偏移补偿负载，使用零速检测）
         then(
@@ -145,7 +144,7 @@ public:
                 right_belt_torque,                            // 右同步带力矩（输入）
                 rmcs_msgs::DartSliderStatus::UP,              // 指令状态
                 10,                                           // 设定速度
-                up_torque_limit,                              // 设定力矩限制
+                3.0,                                          // 设定力矩限制
                 0.5,                                          // 设定保持力矩
                 10000,                                        // 超时帧数
                 1.0,                                          // 堵转速度阈值

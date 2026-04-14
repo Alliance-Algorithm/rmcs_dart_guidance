@@ -15,8 +15,8 @@ public:
     ForceScrewCalibrationAction(
         std::string name, double& force_screw_velocity, const int& current_force_ch1,
         const int& current_force_ch2, int force_channel, double target_force,
-        double force_tolerance, uint64_t settle_ticks, uint64_t timeout_ticks, double kp,
-        double ki, double kd, double max_velocity)
+        double force_tolerance, uint64_t settle_ticks, uint64_t timeout_ticks, double kp, double ki,
+        double kd, double max_velocity)
         : IAction(std::move(name))
         , force_screw_velocity_(force_screw_velocity)
         , current_force_ch1_(current_force_ch1)
@@ -76,7 +76,10 @@ public:
         return ActionStatus::RUNNING;
     }
 
-    void on_exit() override { force_screw_velocity_ = 0.0; }
+    void on_exit() override {
+        force_screw_velocity_ = 0.0;
+        integral_ = 0.0;
+    }
 
 private:
     double& force_screw_velocity_;

@@ -102,225 +102,58 @@ public:
             "/dart/manager/limiting/command", limiting_command_,
             rmcs_msgs::DartLimitingServoStatus::LOCK);
 
-        try {
-            max_transform_rate_ = get_parameter("max_transform_rate").as_double();
-        } catch (...) {
-            max_transform_rate_ = 500.0;
-        }
-        try {
-            manual_force_scale_ = get_parameter("manual_force_scale").as_double();
-        } catch (...) {
-            manual_force_scale_ = 5.0;
-        }
+        manual_force_scale_ = get_parameter("manual_force_scale").as_double();
+
         launch_prepare_enable_visual_assist_ =
-            has_parameter("launch_prepare_enable_visual_assist")
-                ? get_parameter("launch_prepare_enable_visual_assist").as_bool()
-                : false;
+            get_parameter("launch_prepare_enable_visual_assist").as_bool();
         if (launch_prepare_enable_visual_assist_) {
             load_auto_aim_configuration();
         }
 
-        limiting_fill_ticks_ = (uint64_t)get_parameter("limiting_fill_ticks").as_int();
-
         belt_down_distance_ = get_parameter("belt_down_distance").as_double(); // m
         belt_pulley_radius_ = get_parameter("belt_pulley_radius").as_double(); // m
 
-        // 传送带速度和扭矩限制参数（集中管理）
-        try {
-            belt_prepare_down_velocity_first_ =
-                get_parameter("belt_prepare_down_velocity_first").as_double();
-        } catch (...) {
-            belt_prepare_down_velocity_first_ = 5.0;
-        }
-        try {
-            belt_prepare_down_velocity_ = get_parameter("belt_prepare_down_velocity").as_double();
-        } catch (...) {
-            belt_prepare_down_velocity_ = 10.0;
-        }
-        try {
-            belt_prepare_torque_limit_ = get_parameter("belt_prepare_torque_limit").as_double();
-        } catch (...) {
-            belt_prepare_torque_limit_ = 5.0;
-        }
-        try {
-            belt_prepare_up_torque_limit_ =
-                get_parameter("belt_prepare_up_torque_limit").as_double();
-        } catch (...) {
-            belt_prepare_up_torque_limit_ = 1.5;
-        }
-        try {
-            belt_prepare_down_ramp_ticks_ =
-                (uint64_t)get_parameter("belt_prepare_down_ramp_ticks").as_int();
-        } catch (...) {
-            belt_prepare_down_ramp_ticks_ = 400;
-        }
-        try {
-            belt_prepare_down_torque_offset_ =
-                get_parameter("belt_prepare_down_torque_offset").as_double();
-        } catch (...) {
-            belt_prepare_down_torque_offset_ = 2.0;
-        }
-        try {
-            belt_prepare_down_hold_torque_ =
-                get_parameter("belt_prepare_down_hold_torque").as_double();
-        } catch (...) {
-            belt_prepare_down_hold_torque_ = 5.0;
-        }
-        try {
-            belt_prepare_down_zero_velocity_threshold_ =
-                get_parameter("belt_prepare_down_zero_velocity_threshold").as_double();
-        } catch (...) {
-            belt_prepare_down_zero_velocity_threshold_ = 0.15;
-        }
-        try {
-            belt_prepare_down_zero_confirm_ticks_ =
-                (uint64_t)get_parameter("belt_prepare_down_zero_confirm_ticks").as_int();
-        } catch (...) {
-            belt_prepare_down_zero_confirm_ticks_ = 80;
-        }
-        try {
-            belt_prepare_down_ramp_timeout_ticks_ =
-                (uint64_t)get_parameter("belt_prepare_down_ramp_timeout_ticks").as_int();
-        } catch (...) {
-            belt_prepare_down_ramp_timeout_ticks_ = 2000;
-        }
+        belt_prepare_down_velocity_first_ =
+            get_parameter("belt_prepare_down_velocity_first").as_double();
 
-        // 加载上行控制参数
-        try {
-            belt_up_distance_ = get_parameter("belt_up_distance").as_double();
-        } catch (...) {
-            belt_up_distance_ = 0.65;
-        }
-        try {
-            belt_prepare_up_velocity_ = get_parameter("belt_prepare_up_velocity").as_double();
-        } catch (...) {
-            belt_prepare_up_velocity_ = 15.0;
-        }
-        try {
-            belt_up_decel_target_velocity_ =
-                get_parameter("belt_up_decel_target_velocity").as_double();
-        } catch (...) {
-            belt_up_decel_target_velocity_ = 1.0;
-        }
-        try {
-            belt_up_decel_torque_offset_ = get_parameter("belt_up_decel_torque_offset").as_double();
-        } catch (...) {
-            belt_up_decel_torque_offset_ = 0.0;
-        }
-        try {
-            belt_up_stall_velocity_threshold_ =
-                get_parameter("belt_up_stall_velocity_threshold").as_double();
-        } catch (...) {
-            belt_up_stall_velocity_threshold_ = 0.15;
-        }
-        try {
-            belt_up_stall_confirm_ticks_ =
-                (uint64_t)get_parameter("belt_up_stall_confirm_ticks").as_int();
-        } catch (...) {
-            belt_up_stall_confirm_ticks_ = 100;
-        }
-        try {
-            belt_up_stall_min_run_ticks_ =
-                (uint64_t)get_parameter("belt_up_stall_min_run_ticks").as_int();
-        } catch (...) {
-            belt_up_stall_min_run_ticks_ = 300;
-        }
-        try {
-            belt_up_decel_timeout_ticks_ =
-                (uint64_t)get_parameter("belt_up_decel_timeout_ticks").as_int();
-        } catch (...) {
-            belt_up_decel_timeout_ticks_ = 3000;
-        }
+        belt_prepare_down_velocity_ = get_parameter("belt_prepare_down_velocity").as_double();
 
-        lifting_stall_threshold_ = get_parameter("lifting_stall_threshold").as_double();
-        lifting_stall_confirm_ticks_ =
-            (uint64_t)get_parameter("lifting_stall_confirm_ticks").as_int();
-        lifting_stall_min_run_ticks_ =
-            (uint64_t)get_parameter("lifting_stall_min_run_ticks").as_int();
-        lifting_stall_timeout_ticks_ =
-            (uint64_t)get_parameter("lifting_stall_timeout_ticks").as_int();
+        belt_prepare_torque_limit_ = get_parameter("belt_prepare_torque_limit").as_double();
 
-        // 力矩闭环参数
-        try {
-            enable_force_calibration_ = get_parameter("enable_force_calibration").as_bool();
-        } catch (...) {
-            enable_force_calibration_ = false;
-        }
-        try {
-            force_tolerance_ = get_parameter("force_tolerance").as_double();
-        } catch (...) {
-            force_tolerance_ = 5.0;    // N
-        }
-        try {
-            force_settle_ticks_ = (uint64_t)get_parameter("force_settle_ticks").as_int();
-        } catch (...) {
-            force_settle_ticks_ = 50;
-        }
-        try {
-            force_timeout_ticks_ = (uint64_t)get_parameter("force_timeout_ticks").as_int();
-        } catch (...) {
-            force_timeout_ticks_ = 2000;
-        }
-        try {
-            force_kp_ = get_parameter("force_kp").as_double();
-        } catch (...) {
-            force_kp_ = 0.1;
-        }
-        try {
-            force_ki_ = get_parameter("force_ki").as_double();
-        } catch (...) {
-            force_ki_ = 0.0;
-        }
-        try {
-            force_kd_ = get_parameter("force_kd").as_double();
-        } catch (...) {
-            force_kd_ = 0.01;
-        }
-        try {
-            force_max_velocity_ = get_parameter("force_max_velocity").as_double();
-        } catch (...) {
-            force_max_velocity_ = 5.0; // rad/s
-        }
-        try {
-            force_stall_velocity_threshold_ =
-                get_parameter("force_stall_velocity_threshold").as_double();
-        } catch (...) {
-            force_stall_velocity_threshold_ = 0.15;
-        }
-        try {
-            force_stall_torque_threshold_ =
-                get_parameter("force_stall_torque_threshold").as_double();
-        } catch (...) {
-            force_stall_torque_threshold_ = 0.5;
-        }
-        try {
-            force_stall_confirm_ticks_ =
-                (uint64_t)get_parameter("force_stall_confirm_ticks").as_int();
-        } catch (...) {
-            force_stall_confirm_ticks_ = 100;
-        }
-        try {
-            force_stall_min_run_ticks_ =
-                (uint64_t)get_parameter("force_stall_min_run_ticks").as_int();
-        } catch (...) {
-            force_stall_min_run_ticks_ = 100;
-        }
-        try {
-            force_channel_ = get_parameter("force_channel").as_int();
-            if (force_channel_ != 1 && force_channel_ != 2) {
-                RCLCPP_WARN(
-                    get_logger(), "[DartManager] force_channel=%d invalid, defaulting to 1",
-                    force_channel_);
-                force_channel_ = 1;
-            }
-        } catch (...) {
+        belt_prepare_up_torque_limit_ = get_parameter("belt_prepare_up_torque_limit").as_double();
+
+        belt_prepare_down_torque_offset_ =
+            get_parameter("belt_prepare_down_torque_offset").as_double();
+
+        belt_prepare_down_hold_torque_ = get_parameter("belt_prepare_down_hold_torque").as_double();
+
+        belt_up_distance_ = get_parameter("belt_up_distance").as_double();
+
+        belt_prepare_up_velocity_ = get_parameter("belt_prepare_up_velocity").as_double();
+
+        belt_up_decel_target_velocity_ = get_parameter("belt_up_decel_target_velocity").as_double();
+
+        belt_up_decel_torque_offset_ = get_parameter("belt_up_decel_torque_offset").as_double();
+
+        enable_force_calibration_ = get_parameter("enable_force_calibration").as_bool();
+
+        force_tolerance_ = get_parameter("force_tolerance").as_double();
+
+        force_kp_ = get_parameter("force_kp").as_double();
+
+        force_ki_ = get_parameter("force_ki").as_double();
+
+        force_kd_ = get_parameter("force_kd").as_double();
+
+        force_channel_ = (int)get_parameter("force_channel").as_int();
+        if (force_channel_ != 1 && force_channel_ != 2) {
+            RCLCPP_WARN(
+                get_logger(), "[DartManager] force_channel=%d invalid, defaulting to 1",
+                force_channel_);
             force_channel_ = 1;
         }
-        try {
-            belt_torque_scale_ = get_parameter("belt_torque_scale").as_double();
-        } catch (...) {
-            belt_torque_scale_ = 0.0005;
-        }
+
+        belt_torque_scale_ = get_parameter("belt_torque_scale").as_double();
 
         state_pub_ = create_publisher<std_msgs::msg::UInt8>("/dart/manager/state", 10);
 
@@ -725,8 +558,8 @@ private:
                 belt_down_distance_, belt_pulley_radius_, down_velocity);
 
             // 记录当前力值（用于下次fire前的力矩闭环，根据 force_channel_ 选择通道）
-            bool force_ready = (force_channel_ == 2) ? current_force_ch2_.ready()
-                                                     : current_force_ch1_.ready();
+            bool force_ready =
+                (force_channel_ == 2) ? current_force_ch2_.ready() : current_force_ch1_.ready();
             if (force_ready) {
                 last_fire_force_ = static_cast<double>(
                     force_channel_ == 2 ? *current_force_ch2_ : *current_force_ch1_);
@@ -742,25 +575,17 @@ private:
                 *belt_wait_zero_velocity_, *belt_torque_offset_, *belt_error_gain_,
                 *belt_use_decel_pid_, *left_belt_angle_, *right_belt_angle_, *left_belt_velocity_,
                 *right_belt_velocity_, *left_belt_torque_, *right_belt_torque_,
-                *trigger_lock_enable_, belt_down_distance_, belt_pulley_radius_, down_velocity,
-                belt_prepare_torque_limit_, belt_prepare_up_torque_limit_,
-                belt_prepare_down_torque_offset_, belt_prepare_down_hold_torque_,
-                belt_prepare_down_zero_velocity_threshold_, belt_prepare_down_zero_confirm_ticks_,
-                belt_prepare_down_ramp_timeout_ticks_, require_lifting_down, *lifting_command_,
+                *trigger_lock_enable_, belt_down_distance_, down_velocity,
+                belt_prepare_down_hold_torque_, require_lifting_down, *lifting_command_,
                 *lifting_left_vel_fb_, *lifting_right_vel_fb_, *belt_zero_calibration_,
-                belt_up_distance_, belt_up_decel_target_velocity_, belt_up_decel_torque_offset_,
-                belt_up_stall_velocity_threshold_, belt_up_stall_confirm_ticks_,
-                belt_up_stall_min_run_ticks_, belt_up_decel_timeout_ticks_,
-                *force_control_velocity_, *current_force_ch1_, *current_force_ch2_, force_channel_,
-                last_fire_force_, enable_force_calibration_, force_tolerance_, force_settle_ticks_,
+                belt_up_distance_, belt_up_decel_target_velocity_, *force_control_velocity_,
+                *current_force_ch1_, *current_force_ch2_, force_channel_, last_fire_force_,
+                enable_force_calibration_, force_tolerance_, force_settle_ticks_,
                 force_timeout_ticks_, force_kp_, force_ki_, force_kd_, force_max_velocity_,
                 is_first_shot, belt_torque_scale_, get_logger());
         }
 
         if (cmd == "unload" || cmd == "cancel_launch") {
-            // 取消发射使用与准备发射相同的下行参数
-            double down_velocity = belt_prepare_down_velocity_;
-            // 第一发时不需要升降上行（因为还没有下行过）
             bool require_lifting_up = (fire_count_ > 0);
             return std::make_shared<CancelLaunchTask>(
                 *belt_command_, *belt_target_velocity_, *belt_torque_limit_, *belt_hold_torque_,
@@ -768,20 +593,16 @@ private:
                 *belt_use_decel_pid_, *left_belt_angle_, *right_belt_angle_, *left_belt_velocity_,
                 *right_belt_velocity_, *left_belt_torque_, *right_belt_torque_,
                 *trigger_lock_enable_, *lifting_command_, *lifting_left_vel_fb_,
-                *lifting_right_vel_fb_, belt_down_distance_, belt_pulley_radius_, down_velocity,
-                belt_prepare_torque_limit_, belt_prepare_up_torque_limit_,
-                belt_prepare_down_hold_torque_, belt_prepare_down_zero_velocity_threshold_,
-                belt_prepare_down_zero_confirm_ticks_, belt_prepare_down_ramp_timeout_ticks_,
-                *belt_zero_calibration_, require_lifting_up);
+                *lifting_right_vel_fb_, belt_down_distance_, belt_prepare_down_hold_torque_,
+                belt_prepare_down_zero_velocity_threshold_, belt_prepare_down_zero_confirm_ticks_,
+                belt_prepare_down_ramp_timeout_ticks_, *belt_zero_calibration_, require_lifting_up);
         }
 
         if (cmd == "fire") {
             bool is_first_shot = (fire_count_ == 0);
             return std::make_shared<FireAndPreloadTask>(
                 *trigger_lock_enable_, *lifting_command_, *lifting_left_vel_fb_,
-                *lifting_right_vel_fb_, lifting_stall_threshold_, lifting_stall_confirm_ticks_,
-                lifting_stall_min_run_ticks_, lifting_stall_timeout_ticks_, *limiting_command_,
-                limiting_fill_ticks_, is_first_shot);
+                *lifting_right_vel_fb_, *limiting_command_, limiting_fill_ticks_, is_first_shot);
         }
 
         if (cmd == "manual_angle") {
@@ -800,20 +621,20 @@ private:
             const double* force_screw_torque_feedback =
                 force_screw_torque_fb_.ready() ? &*force_screw_torque_fb_ : nullptr;
 
-            if (force_screw_velocity_feedback == nullptr || force_screw_torque_feedback == nullptr) {
+            if (force_screw_velocity_feedback == nullptr
+                || force_screw_torque_feedback == nullptr) {
                 RCLCPP_WARN(
-                    logger_,
-                    "[DartManager] force screw feedback not ready, manual_force stall detection disabled");
+                    logger_, "[DartManager] force screw feedback not ready, manual_force stall "
+                             "detection disabled");
             }
 
             auto task = std::make_shared<Task>("manual_force", "手动力丝杆速度调整");
             task->then(
                 std::make_shared<DartManualForceControlAction>(
                     *force_control_velocity_, *joystick_right_, max_transform_rate_,
-                    manual_force_scale_, force_screw_velocity_feedback,
-                    force_screw_torque_feedback, force_stall_velocity_threshold_,
-                    force_stall_torque_threshold_, force_stall_confirm_ticks_,
-                    force_stall_min_run_ticks_));
+                    manual_force_scale_, force_screw_velocity_feedback, force_screw_torque_feedback,
+                    force_stall_velocity_threshold_, force_stall_torque_threshold_,
+                    force_stall_confirm_ticks_, force_stall_min_run_ticks_));
             return task;
         }
         return nullptr;
@@ -876,7 +697,6 @@ private:
     double belt_prepare_down_velocity_{10.0};                // rad/s
     double belt_prepare_torque_limit_{5.0};                  // N⋅m
     double belt_prepare_up_torque_limit_{1.5};               // N⋅m
-    uint64_t belt_prepare_down_ramp_ticks_{400};             // ticks
     double belt_prepare_down_torque_offset_{2.0};            // N⋅m
     double belt_prepare_down_hold_torque_{5.0};              // N⋅m
     double belt_prepare_down_zero_velocity_threshold_{0.15}; // rad/s
@@ -884,34 +704,25 @@ private:
     uint64_t belt_prepare_down_ramp_timeout_ticks_{2000};    // ticks
 
     // 传送带上行控制参数
-    double belt_up_distance_{0.65};                 // m - 上行目标距离（略低于下行起点）
-    double belt_prepare_up_velocity_{15.0};         // rad/s - 上行速度
-    double belt_up_decel_target_velocity_{1.0};     // rad/s - 上行减速阶段目标速度
-    double belt_up_decel_torque_offset_{0.0};       // N⋅m - 上行减速阶段力矩偏移
-    double belt_up_stall_velocity_threshold_{0.15}; // rad/s - 上行堵转速度阈值
-    uint64_t belt_up_stall_confirm_ticks_{100};     // ticks - 上行堵转确认帧数
-    uint64_t belt_up_stall_min_run_ticks_{300};     // ticks - 上行堵转最小运行帧数
-    uint64_t belt_up_decel_timeout_ticks_{3000};    // ticks - 上行减速超时帧数
-
-    double lifting_stall_threshold_{0.5};
-    uint64_t lifting_stall_confirm_ticks_{100};
-    uint64_t lifting_stall_min_run_ticks_{500};
-    uint64_t lifting_stall_timeout_ticks_{5000};
+    double belt_up_distance_{0.65};             // m - 上行目标距离（略低于下行起点）
+    double belt_prepare_up_velocity_{15.0};     // rad/s - 上行速度
+    double belt_up_decel_target_velocity_{1.0}; // rad/s - 上行减速阶段目标速度
+    double belt_up_decel_torque_offset_{0.0};   // N⋅m - 上行减速阶段力矩偏移
 
     // 力矩闭环参数
     bool enable_force_calibration_{false};
-    double force_tolerance_{5.0};    // N
+    double force_tolerance_{5.0};      // N
     uint64_t force_settle_ticks_{50};
     uint64_t force_timeout_ticks_{2000};
     double force_kp_{0.1};
     double force_ki_{0.0};
     double force_kd_{0.01};
-    double force_max_velocity_{5.0}; // rad/s
+    double force_max_velocity_{5.0};   // rad/s
     double force_stall_velocity_threshold_{0.15};
     double force_stall_torque_threshold_{0.5};
     uint64_t force_stall_confirm_ticks_{100};
     uint64_t force_stall_min_run_ticks_{100};
-    int force_channel_{1}; // 1 = ch1, 2 = ch2
+    int force_channel_{1};             // 1 = ch1, 2 = ch2
     double belt_torque_scale_{0.0005}; // N⋅m/g，传送带自适应力矩补偿倍率
 
     bool launch_prepare_enable_visual_assist_{false};
@@ -939,9 +750,9 @@ private:
     std::shared_ptr<Task> current_task_;
     std::deque<std::shared_ptr<Task>> task_queue_;
     bool first_fill_pending_{true};
-    uint32_t fire_count_{0};         // 当前轮次已完成发射数
+    uint32_t fire_count_{0};           // 当前轮次已完成发射数
     bool first_tick_of_task_{true};
-    double last_fire_force_{0.0};    // 上次fire前记录的力值
+    double last_fire_force_{0.0};      // 上次fire前记录的力值
 };
 
 } // namespace rmcs_dart_guidance::manager
