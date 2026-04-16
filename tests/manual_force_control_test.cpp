@@ -26,8 +26,7 @@ TEST(DartManualForceControlActionTest, ReturnsSuccessAfterConfirmedStall) {
     double measured_torque = 0.8;
 
     DartManualForceControlAction action(
-        force_control_velocity, joystick_right, 5.0, 3.0, &measured_velocity, &measured_torque,
-        0.15, 0.5, 3, 0);
+        force_control_velocity, joystick_right, 5.0, 3.0, &measured_velocity, &measured_torque);
 
     EXPECT_EQ(action.tick_first(), ActionStatus::RUNNING);
     EXPECT_DOUBLE_EQ(force_control_velocity, 15.0);
@@ -46,8 +45,7 @@ TEST(DartManualForceControlActionTest, ResetsStallCounterWhenCommandDropsToZero)
     double measured_torque = 0.8;
 
     DartManualForceControlAction action(
-        force_control_velocity, joystick_right, 5.0, 3.0, &measured_velocity, &measured_torque,
-        0.15, 0.5, 3, 0);
+        force_control_velocity, joystick_right, 5.0, 3.0, &measured_velocity, &measured_torque);
 
     EXPECT_EQ(action.tick_first(), ActionStatus::RUNNING);
     EXPECT_EQ(action.tick(), ActionStatus::RUNNING);

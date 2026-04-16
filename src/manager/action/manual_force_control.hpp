@@ -17,20 +17,14 @@ public:
         double& force_control_velocity, const Eigen::Vector2d& joystick_right,
         double max_transform_rate, double manual_force_scale = 5.0,
         const double* force_screw_velocity_feedback = nullptr,
-        const double* force_screw_torque_feedback = nullptr,
-        double stall_velocity_threshold = 0.15, double stall_torque_threshold = 0.5,
-        uint64_t stall_confirm_ticks = 100, uint64_t min_running_ticks = 100)
+        const double* force_screw_torque_feedback = nullptr)
         : IAction("dart_manual_force_control")
         , force_control_velocity_(force_control_velocity)
         , joystick_right_(joystick_right)
         , max_transform_rate_(max_transform_rate)
         , manual_force_scale_(manual_force_scale)
         , force_screw_velocity_feedback_(force_screw_velocity_feedback)
-        , force_screw_torque_feedback_(force_screw_torque_feedback)
-        , stall_velocity_threshold_(stall_velocity_threshold)
-        , stall_torque_threshold_(stall_torque_threshold)
-        , stall_confirm_ticks_(stall_confirm_ticks)
-        , min_running_ticks_(min_running_ticks) {}
+        , force_screw_torque_feedback_(force_screw_torque_feedback) {}
 
     void on_enter() override {
         force_control_velocity_ = 0.0;
@@ -48,14 +42,13 @@ public:
             return ActionStatus::RUNNING;
         }
 
-        if (elapsed_ticks() > min_running_ticks_) {
+        if (elapsed_ticks() > 100) {
             const double measured_velocity = std::abs(*force_screw_velocity_feedback_);
             const double measured_torque = std::abs(*force_screw_torque_feedback_);
 
-            if (measured_velocity < stall_velocity_threshold_
-                && measured_torque > stall_torque_threshold_) {
+            if (measured_velocity < 0.15 && measured_torque > 0.5) {
                 ++stall_counter_;
-                if (stall_counter_ >= stall_confirm_ticks_) {
+                if (stall_counter_ >= 100) {
                     return ActionStatus::SUCCESS;
                 }
             } else {
@@ -79,10 +72,6 @@ private:
     double manual_force_scale_;
     const double* force_screw_velocity_feedback_;
     const double* force_screw_torque_feedback_;
-    double stall_velocity_threshold_;
-    double stall_torque_threshold_;
-    uint64_t stall_confirm_ticks_;
-    uint64_t min_running_ticks_;
     uint64_t stall_counter_{0};
 };
 

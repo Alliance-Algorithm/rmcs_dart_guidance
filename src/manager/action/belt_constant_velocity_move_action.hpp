@@ -25,14 +25,11 @@ public:
         double& belt_torque_offset, double& belt_torque_limit, double torque_offset_value,
         const double& left_belt_angle, const double& right_belt_angle,
         const double& left_belt_velocity, const double& right_belt_velocity,
-        double target_distance,           // 目标距离（m，正=上行，负=下行）
-        double pulley_radius,             // 滑轮半径（m）
-        double velocity,                  // 运动速度（rad/s）
-        double torque_limit,              // 扭矩限制（N⋅m）
-        uint64_t timeout_ticks, uint64_t min_running_ticks = 50,
-        double position_tolerance = 0.01, // 位置到达容差（rad）
-        double stall_velocity_threshold = 0.3, uint64_t stall_confirm_ticks = 200,
-        double max_down_distance = 0.80)  // 下行最大距离限制（m，正值，防止过度下行）
+        double target_distance,          // 目标距离（m，正=上行，负=下行）
+        double velocity,                 // 运动速度（rad/s）
+        double torque_limit,             // 扭矩限制（N⋅m）
+        uint64_t timeout_ticks,
+        uint64_t min_running_ticks = 50) // 下行最大距离限制（m，正值，防止过度下行）
         : IAction(std::move(name))
         , belt_command_(belt_command)
         , belt_target_velocity_(belt_target_velocity)
@@ -44,46 +41,23 @@ public:
         , left_belt_velocity_(left_belt_velocity)
         , right_belt_velocity_(right_belt_velocity)
         , target_distance_(target_distance)
-        , pulley_radius_(pulley_radius)
         , velocity_(velocity)
         , torque_limit_(torque_limit)
         , timeout_ticks_(timeout_ticks)
-        , min_running_ticks_(min_running_ticks)
-        , position_tolerance_(position_tolerance)
-        , stall_velocity_threshold_(stall_velocity_threshold)
-        , stall_confirm_ticks_(stall_confirm_ticks)
-        , max_down_distance_(max_down_distance) {}
+        , min_running_ticks_(min_running_ticks) {}
 
     void on_enter() override {
         stall_counter_ = 0;
-
-        // 读取初始角度（左传送带，右传送带使用同步控制）
         initial_angle_ = left_belt_angle_;
-
-        // 将目标距离（m）换算为角度偏移（rad）
-        double target_angle_offset = target_distance_ / pulley_radius_;
-
-        // 计算实际目标位置 = 初始角度 + 角度偏移
+        double target_angle_offset =
+            target_distance_ / 0.0195;   // 将目标距离换算为角度偏移（rad），滑轮半径为0.0195m
         target_position_ = initial_angle_ + target_angle_offset;
 
-        // 下行最大距离限制检查（防止过度下行）
-        // 将最大下行距离（m）换算为角度偏移（rad）
-        double max_down_angle_offset = -max_down_distance_ / pulley_radius_; // 负值表示下行
-        double max_down_position = initial_angle_ + max_down_angle_offset;
-
-        if (target_position_ < max_down_position) {
-            target_position_ = max_down_position;
-        }
-
-        // 根据目标位置自动确定运动方向
-        // 实际测量：角度增大=下行，角度减小=上行
         double distance_to_target = target_position_ - initial_angle_;
         if (distance_to_target > 0) {
-            // 目标位置 > 初始位置，角度增大方向 = 下行
             belt_command_ = rmcs_msgs::DartSliderStatus::DOWN;
             belt_target_velocity_ = std::abs(velocity_);
         } else {
-            // 目标位置 < 初始位置，角度减小方向 = 上行
             belt_command_ = rmcs_msgs::DartSliderStatus::UP;
             belt_target_velocity_ = std::abs(velocity_);
         }
@@ -94,7 +68,7 @@ public:
 
     ActionStatus update() override {
         if (elapsed_ticks() >= timeout_ticks_) {
-            return ActionStatus::SUCCESS;
+            return ActionStatus::FAILURE;
         }
 
         double avg_angle = (left_belt_angle_ + right_belt_angle_) / 2.0;
@@ -102,27 +76,14 @@ public:
         double avg_velocity =
             (std::abs(left_belt_velocity_) + std::abs(right_belt_velocity_)) / 2.0;
 
-        if (target_distance_ < 0) {                           // 上行（负距离）
-            double distance_traveled = std::abs(avg_angle - initial_angle_) * pulley_radius_;
-            if (distance_traveled < 0.2) {
-                belt_target_velocity_ = 5.0;                  // 前0.2m慢速
-            } else {
-                belt_target_velocity_ = 15.0;                 // 0.2m后快速
-            }
-        }
-
         // 位置到达判断（优先级最高）
         if (elapsed_ticks() > min_running_ticks_) {
-            bool within_tolerance = std::abs(position_error) < position_tolerance_;
+            bool within_tolerance = std::abs(position_error) < 0.01;
             bool overshot = false;
 
             if (target_distance_ > 0) {
-                // 下行：目标位置 > 初始位置，期望 current 增大
-                // 如果 error < 0，说明 current > target，已经越过
                 overshot = (position_error < 0);
             } else {
-                // 上行：目标位置 < 初始位置，期望 current 减小
-                // 如果 error > 0，说明 current < target，已经越过
                 overshot = (position_error > 0);
             }
 
@@ -131,11 +92,10 @@ public:
             }
         }
 
-        // 堵转检测
-        if (elapsed_ticks() > min_running_ticks_) {
-            if (avg_velocity < stall_velocity_threshold_) {
+        if (elapsed_ticks() > 50) {
+            if (avg_velocity < 0.3) {
                 ++stall_counter_;
-                if (stall_counter_ >= stall_confirm_ticks_) {
+                if (stall_counter_ >= 200) {
                     return ActionStatus::SUCCESS;
                 }
             } else {
@@ -160,15 +120,10 @@ private:
     const double& right_belt_velocity_;
 
     double target_distance_;      // 目标距离（m）
-    double pulley_radius_;        // 滑轮半径（m）
     double velocity_;             // 运动速度（rad/s）
     double torque_limit_;         // 扭矩限制（N⋅m）
     uint64_t timeout_ticks_;
     uint64_t min_running_ticks_;
-    double position_tolerance_;   // 位置到达容差（rad）
-    double stall_velocity_threshold_;
-    uint64_t stall_confirm_ticks_;
-    double max_down_distance_;    // 下行最大距离限制（m，正值）
 
     double initial_angle_{0.0};   // 初始角度（rad，在on_enter中读取）
     double target_position_{0.0}; // 实际目标位置（rad，在on_enter中计算）

@@ -109,40 +109,16 @@ public:
         if (launch_prepare_enable_visual_assist_) {
             load_auto_aim_configuration();
         }
-
         belt_down_distance_ = get_parameter("belt_down_distance").as_double(); // m
-        belt_pulley_radius_ = get_parameter("belt_pulley_radius").as_double(); // m
-
-        belt_prepare_down_velocity_first_ =
-            get_parameter("belt_prepare_down_velocity_first").as_double();
-
-        belt_prepare_down_velocity_ = get_parameter("belt_prepare_down_velocity").as_double();
-
-        belt_prepare_torque_limit_ = get_parameter("belt_prepare_torque_limit").as_double();
-
-        belt_prepare_up_torque_limit_ = get_parameter("belt_prepare_up_torque_limit").as_double();
-
-        belt_prepare_down_torque_offset_ =
-            get_parameter("belt_prepare_down_torque_offset").as_double();
-
-        belt_prepare_down_hold_torque_ = get_parameter("belt_prepare_down_hold_torque").as_double();
 
         belt_up_distance_ = get_parameter("belt_up_distance").as_double();
 
-        belt_prepare_up_velocity_ = get_parameter("belt_prepare_up_velocity").as_double();
-
-        belt_up_decel_target_velocity_ = get_parameter("belt_up_decel_target_velocity").as_double();
-
-        belt_up_decel_torque_offset_ = get_parameter("belt_up_decel_torque_offset").as_double();
-
         enable_force_calibration_ = get_parameter("enable_force_calibration").as_bool();
-
         force_tolerance_ = get_parameter("force_tolerance").as_double();
-
+        force_settle_ticks_ = (uint64_t)get_parameter("force_settle_ticks").as_double();
+        force_timeout_ticks_ = (uint64_t)get_parameter("force_timeout_ticks").as_double();
         force_kp_ = get_parameter("force_kp").as_double();
-
         force_ki_ = get_parameter("force_ki").as_double();
-
         force_kd_ = get_parameter("force_kd").as_double();
 
         force_channel_ = (int)get_parameter("force_channel").as_int();
@@ -152,8 +128,6 @@ public:
                 force_channel_);
             force_channel_ = 1;
         }
-
-        belt_torque_scale_ = get_parameter("belt_torque_scale").as_double();
 
         state_pub_ = create_publisher<std_msgs::msg::UInt8>("/dart/manager/state", 10);
 
@@ -534,8 +508,7 @@ private:
     std::shared_ptr<Task> make_task(const std::string& cmd) {
         if (cmd == "launch_prepare" || cmd == "launch-prepare") {
             // 根据当前 fire_count 选择下降速度（fire_count=0 表示第一次准备）
-            double down_velocity = (fire_count_ == 0) ? belt_prepare_down_velocity_first_
-                                                      : belt_prepare_down_velocity_;
+            double down_velocity = (fire_count_ == 0) ? 8.0 : 10.0;
             bool require_lifting_down = (fire_count_ > 0);
             bool is_first_shot = (fire_count_ == 0);
 
@@ -552,10 +525,8 @@ private:
                 RCLCPP_WARN(logger_, "[DartManager] Belt angle feedback NOT READY!");
             }
             RCLCPP_INFO(
-                logger_,
-                "[DartManager] Belt params: down_distance=%.4f m, pulley_radius=%.4f m, "
-                "down_velocity=%.2f rad/s",
-                belt_down_distance_, belt_pulley_radius_, down_velocity);
+                logger_, "[DartManager] Belt params: down_distance=%.4f m, pulley_radius=%.4f m",
+                belt_down_distance_, down_velocity);
 
             // 记录当前力值（用于下次fire前的力矩闭环，根据 force_channel_ 选择通道）
             bool force_ready =
@@ -572,37 +543,32 @@ private:
 
             return std::make_shared<LaunchPreparationTask>(
                 *belt_command_, *belt_target_velocity_, *belt_torque_limit_, *belt_hold_torque_,
-                *belt_wait_zero_velocity_, *belt_torque_offset_, *belt_error_gain_,
-                *belt_use_decel_pid_, *left_belt_angle_, *right_belt_angle_, *left_belt_velocity_,
-                *right_belt_velocity_, *left_belt_torque_, *right_belt_torque_,
-                *trigger_lock_enable_, belt_down_distance_, down_velocity,
-                belt_prepare_down_hold_torque_, require_lifting_down, *lifting_command_,
-                *lifting_left_vel_fb_, *lifting_right_vel_fb_, *belt_zero_calibration_,
-                belt_up_distance_, belt_up_decel_target_velocity_, *force_control_velocity_,
+                *belt_wait_zero_velocity_, *belt_torque_offset_, *left_belt_angle_,
+                *right_belt_angle_, *left_belt_velocity_, *right_belt_velocity_,
+                *trigger_lock_enable_, belt_down_distance_, down_velocity, require_lifting_down,
+                *lifting_command_, *lifting_left_vel_fb_, *lifting_right_vel_fb_,
+                *belt_zero_calibration_, belt_up_distance_, *force_control_velocity_,
                 *current_force_ch1_, *current_force_ch2_, force_channel_, last_fire_force_,
                 enable_force_calibration_, force_tolerance_, force_settle_ticks_,
-                force_timeout_ticks_, force_kp_, force_ki_, force_kd_, force_max_velocity_,
-                is_first_shot, belt_torque_scale_, get_logger());
+                force_timeout_ticks_, force_kp_, force_ki_, force_kd_, is_first_shot);
         }
 
         if (cmd == "unload" || cmd == "cancel_launch") {
             bool require_lifting_up = (fire_count_ > 0);
             return std::make_shared<CancelLaunchTask>(
                 *belt_command_, *belt_target_velocity_, *belt_torque_limit_, *belt_hold_torque_,
-                *belt_wait_zero_velocity_, *belt_torque_offset_, *belt_error_gain_,
-                *belt_use_decel_pid_, *left_belt_angle_, *right_belt_angle_, *left_belt_velocity_,
-                *right_belt_velocity_, *left_belt_torque_, *right_belt_torque_,
+                *belt_wait_zero_velocity_, *belt_torque_offset_, *left_belt_angle_,
+                *right_belt_angle_, *left_belt_velocity_, *right_belt_velocity_,
                 *trigger_lock_enable_, *lifting_command_, *lifting_left_vel_fb_,
-                *lifting_right_vel_fb_, belt_down_distance_, belt_prepare_down_hold_torque_,
-                belt_prepare_down_zero_velocity_threshold_, belt_prepare_down_zero_confirm_ticks_,
-                belt_prepare_down_ramp_timeout_ticks_, *belt_zero_calibration_, require_lifting_up);
+                *lifting_right_vel_fb_, belt_down_distance_, *belt_zero_calibration_,
+                belt_up_distance_, require_lifting_up);
         }
 
         if (cmd == "fire") {
             bool is_first_shot = (fire_count_ == 0);
             return std::make_shared<FireAndPreloadTask>(
                 *trigger_lock_enable_, *lifting_command_, *lifting_left_vel_fb_,
-                *lifting_right_vel_fb_, *limiting_command_, limiting_fill_ticks_, is_first_shot);
+                *lifting_right_vel_fb_, *limiting_command_, is_first_shot);
         }
 
         if (cmd == "manual_angle") {
@@ -632,9 +598,8 @@ private:
             task->then(
                 std::make_shared<DartManualForceControlAction>(
                     *force_control_velocity_, *joystick_right_, max_transform_rate_,
-                    manual_force_scale_, force_screw_velocity_feedback, force_screw_torque_feedback,
-                    force_stall_velocity_threshold_, force_stall_torque_threshold_,
-                    force_stall_confirm_ticks_, force_stall_min_run_ticks_));
+                    manual_force_scale_, force_screw_velocity_feedback,
+                    force_screw_torque_feedback));
             return task;
         }
         return nullptr;
@@ -688,42 +653,20 @@ private:
     double max_transform_rate_{500.0};
     double manual_force_scale_{5.0};
     double auto_aim_max_transform_rate_{500.0};
-    uint64_t limiting_fill_ticks_{500};
 
-    double belt_down_distance_{0.0};                         // m
-    double belt_pulley_radius_{0.0};                         // m
+    double belt_down_distance_{0.0}; // m
 
-    double belt_prepare_down_velocity_first_{5.0};           // rad/s
-    double belt_prepare_down_velocity_{10.0};                // rad/s
-    double belt_prepare_torque_limit_{5.0};                  // N⋅m
-    double belt_prepare_up_torque_limit_{1.5};               // N⋅m
-    double belt_prepare_down_torque_offset_{2.0};            // N⋅m
-    double belt_prepare_down_hold_torque_{5.0};              // N⋅m
-    double belt_prepare_down_zero_velocity_threshold_{0.15}; // rad/s
-    uint64_t belt_prepare_down_zero_confirm_ticks_{60};      // ticks
-    uint64_t belt_prepare_down_ramp_timeout_ticks_{2000};    // ticks
-
-    // 传送带上行控制参数
-    double belt_up_distance_{0.65};             // m - 上行目标距离（略低于下行起点）
-    double belt_prepare_up_velocity_{15.0};     // rad/s - 上行速度
-    double belt_up_decel_target_velocity_{1.0}; // rad/s - 上行减速阶段目标速度
-    double belt_up_decel_torque_offset_{0.0};   // N⋅m - 上行减速阶段力矩偏移
+    double belt_up_distance_{0.70};
 
     // 力矩闭环参数
     bool enable_force_calibration_{false};
-    double force_tolerance_{5.0};      // N
+    double force_tolerance_{5.0}; // N
     uint64_t force_settle_ticks_{50};
     uint64_t force_timeout_ticks_{2000};
     double force_kp_{0.1};
     double force_ki_{0.0};
     double force_kd_{0.01};
-    double force_max_velocity_{5.0};   // rad/s
-    double force_stall_velocity_threshold_{0.15};
-    double force_stall_torque_threshold_{0.5};
-    uint64_t force_stall_confirm_ticks_{100};
-    uint64_t force_stall_min_run_ticks_{100};
-    int force_channel_{1};             // 1 = ch1, 2 = ch2
-    double belt_torque_scale_{0.0005}; // N⋅m/g，传送带自适应力矩补偿倍率
+    int force_channel_{1};        // 1 = ch1, 2 = ch2
 
     bool launch_prepare_enable_visual_assist_{false};
     AutoAimFeedback auto_aim_feedback_;
@@ -750,9 +693,9 @@ private:
     std::shared_ptr<Task> current_task_;
     std::deque<std::shared_ptr<Task>> task_queue_;
     bool first_fill_pending_{true};
-    uint32_t fire_count_{0};           // 当前轮次已完成发射数
+    uint32_t fire_count_{0};      // 当前轮次已完成发射数
     bool first_tick_of_task_{true};
-    double last_fire_force_{0.0};      // 上次fire前记录的力值
+    double last_fire_force_{0.0}; // 上次fire前记录的力值
 };
 
 } // namespace rmcs_dart_guidance::manager

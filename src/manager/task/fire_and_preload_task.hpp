@@ -5,7 +5,6 @@
 #include "manager/action/trigger_control_action.hpp"
 #include "manager/task/task.hpp"
 
-#include <cstdint>
 #include <memory>
 
 #include <rmcs_msgs/dart_limiting_servo_status.hpp>
@@ -22,8 +21,7 @@ public:
     FireAndPreloadTask(
         bool& trigger_lock_enable, rmcs_msgs::DartSliderStatus& lifting_command,
         const double& lifting_left_vel_fb, const double& lifting_right_vel_fb,
-        rmcs_msgs::DartLimitingServoStatus& limiting_command, uint64_t preload_fill_ticks,
-        bool is_first_shot = false)
+        rmcs_msgs::DartLimitingServoStatus& limiting_command, bool is_first_shot = false)
         : Task("fire", "发射并预装填") {
 
         // 第一发特殊处理：只解锁扳机，无需升降和预装填
@@ -60,8 +58,7 @@ public:
                 std::make_shared<FillingLimitServoAction>(
                     limiting_command,                         // 限位舵机状态（输出）
                     rmcs_msgs::DartLimitingServoStatus::FREE, // 先释放
-                    rmcs_msgs::DartLimitingServoStatus::LOCK, // 再锁回
-                    preload_fill_ticks                        // 预装填持续帧数
+                    rmcs_msgs::DartLimitingServoStatus::LOCK  // 再锁回
                     ));
         }
     }
