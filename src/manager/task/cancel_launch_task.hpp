@@ -31,8 +31,7 @@ public:
         const double& left_belt_velocity, const double& right_belt_velocity,
         bool& trigger_lock_enable, rmcs_msgs::DartSliderStatus& lifting_command,
         const double& lifting_left_vel_fb, const double& lifting_right_vel_fb,
-        double belt_down_distance, bool& belt_zero_calibration, double belt_up_distance,
-        bool require_lifting_up = true)
+        double belt_down_distance, bool& belt_zero_calibration, bool require_lifting_up = true)
         : Task("cancel_launch", "取消发射") {
 
         // 步骤1：传送带匀速下行到卸载位（使用速度控制+多圈角度反馈）
@@ -118,8 +117,8 @@ public:
                 right_belt_angle,                    // 右电机角度反馈（输入）
                 left_belt_velocity,                  // 左电机速度反馈（输入）
                 right_belt_velocity,                 // 右电机速度反馈（输入）
-                -(belt_up_distance - 0.01),          // 目标距离
-                10.0,                                // 快速（rad/s）
+                -0.01,                               // 目标距离
+                15.0,                                // 快速（rad/s）
                 5.0,                                 // 扭矩限制（N⋅m）
                 10000));
 
@@ -135,8 +134,8 @@ public:
                 right_belt_angle,                    // 右电机角度反馈（输入）
                 left_belt_velocity,                  // 左电机速度反馈（输入）
                 right_belt_velocity,                 // 右电机速度反馈（输入）
-                -(belt_up_distance - 0.70),          // 目标距离
-                15.0,                                // 快速（rad/s）
+                -0.65,                               // 目标距离
+                20.0,                                // 快速（rad/s）
                 3.0,                                 // 扭矩限制（N⋅m）
                 10000));
 
@@ -152,8 +151,8 @@ public:
                 right_belt_angle,                    // 右电机角度反馈（输入）
                 left_belt_velocity,                  // 左电机速度反馈（输入）
                 right_belt_velocity,                 // 右电机速度反馈（输入）
-                -(belt_up_distance - 0.30),          // 目标距离）
-                5.0,                                 // 快速（rad/s）
+                -0.75,                               // 目标距离）
+                15.0,                                // 快速（rad/s）
                 0.8,                                 // 扭矩限制（N⋅m）
                 10000));
 

@@ -111,12 +111,10 @@ public:
         }
         belt_down_distance_ = get_parameter("belt_down_distance").as_double(); // m
 
-        belt_up_distance_ = get_parameter("belt_up_distance").as_double();
-
         enable_force_calibration_ = get_parameter("enable_force_calibration").as_bool();
         force_tolerance_ = get_parameter("force_tolerance").as_double();
-        force_settle_ticks_ = (uint64_t)get_parameter("force_settle_ticks").as_double();
-        force_timeout_ticks_ = (uint64_t)get_parameter("force_timeout_ticks").as_double();
+        force_settle_ticks_ = (uint64_t)get_parameter("force_settle_ticks").as_int();
+        force_timeout_ticks_ = (uint64_t)get_parameter("force_timeout_ticks").as_int();
         force_kp_ = get_parameter("force_kp").as_double();
         force_ki_ = get_parameter("force_ki").as_double();
         force_kd_ = get_parameter("force_kd").as_double();
@@ -508,7 +506,7 @@ private:
     std::shared_ptr<Task> make_task(const std::string& cmd) {
         if (cmd == "launch_prepare" || cmd == "launch-prepare") {
             // 根据当前 fire_count 选择下降速度（fire_count=0 表示第一次准备）
-            double down_velocity = (fire_count_ == 0) ? 8.0 : 10.0;
+            double down_velocity = (fire_count_ == 0) ? 12.0 : 10.0;
             bool require_lifting_down = (fire_count_ > 0);
             bool is_first_shot = (fire_count_ == 0);
 
@@ -547,10 +545,10 @@ private:
                 *right_belt_angle_, *left_belt_velocity_, *right_belt_velocity_,
                 *trigger_lock_enable_, belt_down_distance_, down_velocity, require_lifting_down,
                 *lifting_command_, *lifting_left_vel_fb_, *lifting_right_vel_fb_,
-                *belt_zero_calibration_, belt_up_distance_, *force_control_velocity_,
-                *current_force_ch1_, *current_force_ch2_, force_channel_, last_fire_force_,
-                enable_force_calibration_, force_tolerance_, force_settle_ticks_,
-                force_timeout_ticks_, force_kp_, force_ki_, force_kd_, is_first_shot);
+                *belt_zero_calibration_, *force_control_velocity_, *current_force_ch1_,
+                *current_force_ch2_, force_channel_, last_fire_force_, enable_force_calibration_,
+                force_tolerance_, force_settle_ticks_, force_timeout_ticks_, force_kp_, force_ki_,
+                force_kd_, is_first_shot);
         }
 
         if (cmd == "unload" || cmd == "cancel_launch") {
@@ -561,7 +559,7 @@ private:
                 *right_belt_angle_, *left_belt_velocity_, *right_belt_velocity_,
                 *trigger_lock_enable_, *lifting_command_, *lifting_left_vel_fb_,
                 *lifting_right_vel_fb_, belt_down_distance_, *belt_zero_calibration_,
-                belt_up_distance_, require_lifting_up);
+                require_lifting_up);
         }
 
         if (cmd == "fire") {
@@ -655,8 +653,6 @@ private:
     double auto_aim_max_transform_rate_{500.0};
 
     double belt_down_distance_{0.0}; // m
-
-    double belt_up_distance_{0.70};
 
     // 力矩闭环参数
     bool enable_force_calibration_{false};

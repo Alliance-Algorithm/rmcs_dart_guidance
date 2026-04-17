@@ -30,11 +30,11 @@ public:
         bool& trigger_lock_enable, double belt_down_distance, double down_velocity,
         bool require_lifting_down, rmcs_msgs::DartSliderStatus& lifting_command,
         const double& lifting_left_vel_fb, const double& lifting_right_vel_fb,
-        bool& belt_zero_calibration, double belt_up_distance, double& force_screw_velocity,
-        const int& current_force_ch1, const int& current_force_ch2, int force_channel,
-        double target_force, bool enable_force_calibration, double force_tolerance,
-        uint64_t force_settle_ticks, uint64_t force_timeout_ticks, double force_kp, double force_ki,
-        double force_kd, bool is_first_shot = false)
+        bool& belt_zero_calibration, double& force_screw_velocity, const int& current_force_ch1,
+        const int& current_force_ch2, int force_channel, double target_force,
+        bool enable_force_calibration, double force_tolerance, uint64_t force_settle_ticks,
+        uint64_t force_timeout_ticks, double force_kp, double force_ki, double force_kd,
+        bool is_first_shot = false)
         : Task("launch_preparation", "发射准备（传送带下行 + 扳机锁定 + 上行复位）") {
 
         // 步骤1：传送带匀速下行到目标位置（使用速度控制+多圈角度反馈）
@@ -51,7 +51,7 @@ public:
                 right_belt_angle,                          // 右电机角度反馈（输入）
                 left_belt_velocity,                        // 左电机速度反馈（输入）
                 right_belt_velocity,                       // 右电机速度反馈（输入）
-                +belt_down_distance,                       // 目标距离（m，正值=下行）
+                +belt_down_distance - 0.1,                 // 目标距离（m，正值=下行）
                 down_velocity,                             // 运动速度（rad/s）
                 10,                                        // 扭矩限制（N⋅m）
                 10000                                      // 超时帧数
@@ -135,10 +135,10 @@ public:
                 right_belt_angle,            // 右电机角度反馈（输入）
                 left_belt_velocity,          // 左电机速度反馈（输入）
                 right_belt_velocity,         // 右电机速度反馈（输入）
-                -(belt_up_distance - 0.01),  // 目标距离
+                -0.05,                       // 目标距离
                 10.0,                        // 快速（rad/s）
                 5.0,                         // 扭矩限制（N⋅m）
-                10000));
+                1000));
 
         then(
             std::make_shared<BeltConstantVelocityMoveAction>(
@@ -152,10 +152,10 @@ public:
                 right_belt_angle,            // 右电机角度反馈（输入）
                 left_belt_velocity,          // 左电机速度反馈（输入）
                 right_belt_velocity,         // 右电机速度反馈（输入）
-                -(belt_up_distance - 0.70),  // 目标距离
-                15.0,                        // 快速（rad/s）
+                -0.65,                       // 目标距离
+                20.0,                        // 快速（rad/s）
                 3.0,                         // 扭矩限制（N⋅m）
-                10000));
+                2000));
 
         then(
             std::make_shared<BeltConstantVelocityMoveAction>(
@@ -169,16 +169,15 @@ public:
                 right_belt_angle,            // 右电机角度反馈（输入）
                 left_belt_velocity,          // 左电机速度反馈（输入）
                 right_belt_velocity,         // 右电机速度反馈（输入）
-                -(belt_up_distance - 0.30),  // 目标距离）
-                5.0,                         // 快速（rad/s）
-                0.8,                         // 扭矩限制（N⋅m）
-                10000));
+                -0.75,                       // 目标距离）
+                12.0,                        // 快速（rad/s）
+                0.5,                         // 扭矩限制（N⋅m）
+                1000));
 
         then(std::make_shared<DelayAction>("stabilize_wait", 50));
 
         then(std::make_shared<ZeroCalibrationAction>(belt_zero_calibration));
 
-        // 力矩闭环：第一发使用固定目标力，后续发使用上次记录的力值
         if (enable_force_calibration) {
             double target_force_value = is_first_shot ? 16000.0 : target_force;
             double tolerance_value = is_first_shot ? 0.5 : force_tolerance;
