@@ -37,49 +37,49 @@ public:
         // 步骤1：传送带匀速下行到卸载位（使用速度控制+多圈角度反馈）
         then(
             std::make_shared<BeltConstantVelocityMoveAction>(
-                "belt_move_down_constant_velocity",     // 动作名称
-                belt_command,                           // 速度模式方向命令（输出）
-                belt_target_velocity,                   // 目标速度（输出）
-                belt_torque_offset,                     // 力矩偏移（输出）
-                belt_torque_limit,                      // 扭矩限幅（输出）
+                "belt_move_down_constant_velocity", // 动作名称
+                belt_command,                       // 速度模式方向命令（输出）
+                belt_target_velocity,               // 目标速度（输出）
+                belt_torque_offset,                 // 力矩偏移（输出）
+                belt_torque_limit,                  // 扭矩限幅（输出）
                 0.0,
-                left_belt_angle,                        // 左电机角度反馈（输入）
-                right_belt_angle,                       // 右电机角度反馈（输入）
-                left_belt_velocity,                     // 左电机速度反馈（输入）
-                right_belt_velocity,                    // 右电机速度反馈（输入）
-                +belt_down_distance,                    // 目标距离（m，正值=下行）
-                10,                                     // 运动速度（rad/s）
-                10,                                     // 扭矩限制（N⋅m）
-                10000));                                // 超时帧数
+                left_belt_angle,                    // 左电机角度反馈（输入）
+                right_belt_angle,                   // 右电机角度反馈（输入）
+                left_belt_velocity,                 // 左电机速度反馈（输入）
+                right_belt_velocity,                // 右电机速度反馈（输入）
+                +belt_down_distance,                // 目标距离（m，正值=下行）
+                12,                                 // 运动速度（rad/s）
+                10,                                 // 扭矩限制（N⋅m）
+                10000));                            // 超时帧数
 
         auto down_and_hold_ = std::make_shared<ActionSequence>("down_and_hold");
         down_and_hold_
             ->then(
                 std::make_shared<BeltConstantVelocityMoveAction>(
-                    "belt_move_down_constant_velocity", // 动作名称
-                    belt_command,                       // 速度模式方向命令（输出）
-                    belt_target_velocity,               // 目标速度（输出）
-                    belt_torque_offset,                 // 力矩偏移（输出）
-                    belt_torque_limit,                  // 扭矩限幅（输出）
-                    0.0,                                // 力矩偏移值
-                    left_belt_angle,                    // 左电机角度反馈（输入）
-                    right_belt_angle,                   // 右电机角度反馈（输入）
-                    left_belt_velocity,                 // 左电机速度反馈（输入）
-                    right_belt_velocity,                // 右电机速度反馈（输入）
-                    +0.1,                               // 目标距离（m，正值=下行）
-                    8,                                  // 运动速度（rad/s）
-                    5,                                  // 扭矩限制（N⋅m）
-                    10000                               // 超时帧数
+                    "belt_slowly_down",             // 动作名称
+                    belt_command,                   // 速度模式方向命令（输出）
+                    belt_target_velocity,           // 目标速度（输出）
+                    belt_torque_offset,             // 力矩偏移（输出）
+                    belt_torque_limit,              // 扭矩限幅（输出）
+                    0.0,                            // 力矩偏移值
+                    left_belt_angle,                // 左电机角度反馈（输入）
+                    right_belt_angle,               // 右电机角度反馈（输入）
+                    left_belt_velocity,             // 左电机速度反馈（输入）
+                    right_belt_velocity,            // 右电机速度反馈（输入）
+                    +0.1,                           // 目标距离（m，正值=下行）
+                    8,                              // 运动速度（rad/s）
+                    5,                              // 扭矩限制（N⋅m）
+                    10000                           // 超时帧数
                     ))
             .then(
                 std::make_shared<BeltHoldTorqueAction>(
-                    "belt_hold_torque",                 // 动作名称
-                    belt_command,                       // 传送带命令（输出）
-                    belt_target_velocity,               // 目标速度（输出）
-                    belt_hold_torque,                   // 保持力矩（输出）
-                    belt_wait_zero_velocity,            // WAIT模式选择（输出）
-                    belt_torque_offset,                 // 力矩偏移（输出）
-                    5.0,                                // 保持力矩值（N⋅m）
+                    "belt_hold_torque",             // 动作名称
+                    belt_command,                   // 传送带命令（输出）
+                    belt_target_velocity,           // 目标速度（输出）
+                    belt_hold_torque,               // 保持力矩（输出）
+                    belt_wait_zero_velocity,        // WAIT模式选择（输出）
+                    belt_torque_offset,             // 力矩偏移（输出）
+                    5.0,                            // 保持力矩值（N⋅m）
                     2000));
 
         // 步骤3：传送带保持高扭矩 + 解锁扳机 + (可选)升降上行并行

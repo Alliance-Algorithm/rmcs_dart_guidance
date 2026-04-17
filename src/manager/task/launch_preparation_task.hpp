@@ -61,7 +61,7 @@ public:
         down_and_hold_
             ->then(
                 std::make_shared<BeltConstantVelocityMoveAction>(
-                    "belt_move_down_constant_velocity",    // 动作名称
+                    "belt_slowly_down",                    // 动作名称
                     belt_command,                          // 速度模式方向命令（输出）
                     belt_target_velocity,                  // 目标速度（输出）
                     belt_torque_offset,                    // 力矩偏移（输出）

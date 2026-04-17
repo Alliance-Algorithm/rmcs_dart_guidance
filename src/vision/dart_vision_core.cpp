@@ -1,6 +1,7 @@
 #include "identifier.hpp"
 #include "image_recorder.hpp"
 #include "tracker.hpp"
+#include "video_recorder.hpp"
 #include <atomic>
 #include <chrono>
 #include <hikcamera/image_capturer.hpp>
@@ -58,6 +59,25 @@ public:
                                   ? get_parameter("save_processed_image").as_bool()
                                   : false;
 
+        // Video recording parameters
+        enable_video_recording_ = has_parameter("enable_video_recording");
+        video_save_directory_ = has_parameter("video_save_directory")
+                                  ? get_parameter("video_save_directory").as_string()
+                                  : "./saved_videos";
+        video_codec_ =
+            has_parameter("video_codec") ? get_parameter("video_codec").as_string() : "H264";
+        video_fps_ =
+            has_parameter("video_fps") ? static_cast<int>(get_parameter("video_fps").as_int()) : 30;
+        video_rotation_minutes_ =
+            has_parameter("video_rotation_minutes")
+                ? static_cast<int>(get_parameter("video_rotation_minutes").as_int())
+                : 5;
+        record_raw_video_ =
+            has_parameter("record_raw_video") ? get_parameter("record_raw_video").as_bool() : true;
+        record_processed_video_ = has_parameter("record_processed_video")
+                                    ? get_parameter("record_processed_video").as_bool()
+                                    : true;
+
         image_capture_ = std::make_unique<hikcamera::ImageCapturer>(camera_profile_);
 
         identifier_.set_default_limit(lower_limit_default_, upper_limit_default_);
@@ -67,6 +87,15 @@ public:
             image_recorder_ = std::make_unique<ImageRecorder>(logger_);
             if (!image_recorder_->Init(save_directory_)) {
                 enable_image_saving_ = false;
+            }
+        }
+
+        if (enable_video_recording_) {
+            video_recorder_ = std::make_unique<VideoRecorder>(logger_);
+            if (!video_recorder_->Init(
+                    video_save_directory_, video_codec_, video_fps_, video_rotation_minutes_)) {
+                enable_video_recording_ = false;
+                RCLCPP_ERROR(logger_, "Failed to initialize video recorder");
             }
         }
 
@@ -84,6 +113,19 @@ public:
             RCLCPP_INFO(logger_, "Image saving disabled");
         }
 
+        if (enable_video_recording_) {
+            RCLCPP_INFO(logger_, "Video recording enabled:");
+            RCLCPP_INFO(logger_, "  Directory: %s", video_save_directory_.c_str());
+            RCLCPP_INFO(logger_, "  Codec: %s", video_codec_.c_str());
+            RCLCPP_INFO(logger_, "  FPS: %d", video_fps_);
+            RCLCPP_INFO(logger_, "  Rotation: %d minutes", video_rotation_minutes_);
+            RCLCPP_INFO(logger_, "  Record raw: %s", record_raw_video_ ? "true" : "false");
+            RCLCPP_INFO(
+                logger_, "  Record processed: %s", record_processed_video_ ? "true" : "false");
+        } else {
+            RCLCPP_INFO(logger_, "Video recording disabled");
+        }
+
         camera_thread_ = std::thread(&DartVisionCore::camera_update, this);
         update_time_point_ = std::chrono::steady_clock::now();
     }
@@ -92,6 +134,9 @@ public:
         is_running_ = false;
         if (image_recorder_) {
             image_recorder_->stop();
+        }
+        if (video_recorder_) {
+            video_recorder_->stop();
         }
         if (camera_thread_.joinable()) {
             camera_thread_.join();
@@ -135,6 +180,10 @@ private:
                     RCLCPP_INFO(logger_, "Pushed raw image %d to save queue", saved_raw_counter);
                 }
 
+                if (enable_video_recording_ && record_raw_video_ && video_recorder_) {
+                    video_recorder_->push_frame(raw_image, "raw");
+                }
+
                 cv::Mat published_raw = raw_image.clone();
                 int cx = published_raw.cols / 2;
                 int cy = published_raw.rows / 2;
@@ -165,6 +214,10 @@ private:
                             saved_processed_counter);
                     }
                     last_save_time = now;
+                }
+
+                if (enable_video_recording_ && record_processed_video_ && video_recorder_) {
+                    video_recorder_->push_frame(display_image, "processed");
                 }
 
                 if (frame_counter % 30 == 0) {
@@ -259,6 +312,16 @@ private:
     bool save_processed_image_ = false;
 
     std::unique_ptr<ImageRecorder> image_recorder_;
+
+    bool enable_video_recording_ = false;
+    std::string video_save_directory_ = "./saved_videos";
+    std::string video_codec_ = "H264";
+    int video_fps_ = 30;
+    int video_rotation_minutes_ = 5;
+    bool record_raw_video_ = true;
+    bool record_processed_video_ = true;
+
+    std::unique_ptr<VideoRecorder> video_recorder_;
 
     std::thread camera_thread_;
     std::mutex camera_thread_mtx_;
