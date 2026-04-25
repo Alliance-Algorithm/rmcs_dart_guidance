@@ -29,11 +29,13 @@ public:
     void on_enter() override {
         force_control_velocity_ = 0.0;
         stall_counter_ = 0;
+        if (manual_force_scale_ > max_transform_rate_) {
+            manual_force_scale_ = max_transform_rate_;
+        }
     }
 
     ActionStatus update() override {
-        const double target_velocity =
-            joystick_right_.x() * max_transform_rate_ * manual_force_scale_;
+        const double target_velocity = joystick_right_.x() * manual_force_scale_;
         force_control_velocity_ = target_velocity;
 
         if (std::abs(target_velocity) <= 1e-6 || force_screw_velocity_feedback_ == nullptr

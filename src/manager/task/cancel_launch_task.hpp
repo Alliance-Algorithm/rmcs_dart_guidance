@@ -31,8 +31,12 @@ public:
         const double& left_belt_velocity, const double& right_belt_velocity,
         bool& trigger_lock_enable, rmcs_msgs::DartSliderStatus& lifting_command,
         const double& lifting_left_vel_fb, const double& lifting_right_vel_fb,
-        double belt_down_distance, bool& belt_zero_calibration, bool require_lifting_up = true)
+        double belt_down_distance, bool& belt_zero_calibration,
+        double& force_screw_control_velocity, bool require_lifting_up = true)
         : Task("cancel_launch", "取消发射") {
+
+        // 立即停止力丝杆电机（直接设置速度为0）
+        force_screw_control_velocity = 0.0;
 
         // 步骤1：传送带匀速下行到卸载位（使用速度控制+多圈角度反馈）
         then(
@@ -47,7 +51,7 @@ public:
                 right_belt_angle,                   // 右电机角度反馈（输入）
                 left_belt_velocity,                 // 左电机速度反馈（输入）
                 right_belt_velocity,                // 右电机速度反馈（输入）
-                +belt_down_distance,                // 目标距离（m，正值=下行）
+                +belt_down_distance - 0.1,          // 目标距离（m，正值=下行）
                 12,                                 // 运动速度（rad/s）
                 10,                                 // 扭矩限制（N⋅m）
                 10000));                            // 超时帧数

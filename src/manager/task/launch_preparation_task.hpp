@@ -34,7 +34,9 @@ public:
         const int& current_force_ch2, int force_channel, double target_force,
         bool enable_force_calibration, double force_tolerance, uint64_t force_settle_ticks,
         uint64_t force_timeout_ticks, double force_kp, double force_ki, double force_kd,
-        bool is_first_shot = false)
+        bool is_first_shot = false, bool use_kalman_force = false,
+        const double* kalman_filtered_force = nullptr, const double* kalman_force_rate = nullptr,
+        bool kalman_rate_feedforward = false, double kalman_rate_gain = 0.0)
         : Task("launch_preparation", "发射准备（传送带下行 + 扳机锁定 + 上行复位）") {
 
         // 步骤1：传送带匀速下行到目标位置（使用速度控制+多圈角度反馈）
@@ -85,7 +87,7 @@ public:
                     belt_wait_zero_velocity,               // WAIT模式选择（输出）
                     belt_torque_offset,                    // 力矩偏移（输出）
                     5.0,                                   // 保持力矩值（N⋅m）
-                    2000));
+                    1000));
 
         if (require_lifting_down) {
             auto parallel_hold_lock_and_lift =
@@ -135,10 +137,10 @@ public:
                 right_belt_angle,            // 右电机角度反馈（输入）
                 left_belt_velocity,          // 左电机速度反馈（输入）
                 right_belt_velocity,         // 右电机速度反馈（输入）
-                -0.05,                       // 目标距离
-                10.0,                        // 快速（rad/s）
+                -0.20,                       // 目标距离
+                5.0,                         // 快速（rad/s）
                 5.0,                         // 扭矩限制（N⋅m）
-                1000));
+                10000));
 
         then(
             std::make_shared<BeltConstantVelocityMoveAction>(
@@ -152,10 +154,10 @@ public:
                 right_belt_angle,            // 右电机角度反馈（输入）
                 left_belt_velocity,          // 左电机速度反馈（输入）
                 right_belt_velocity,         // 右电机速度反馈（输入）
-                -0.65,                       // 目标距离
+                -0.50,                       // 目标距离
                 20.0,                        // 快速（rad/s）
                 3.0,                         // 扭矩限制（N⋅m）
-                2000));
+                10000));
 
         then(
             std::make_shared<BeltConstantVelocityMoveAction>(
@@ -170,23 +172,36 @@ public:
                 left_belt_velocity,          // 左电机速度反馈（输入）
                 right_belt_velocity,         // 右电机速度反馈（输入）
                 -0.75,                       // 目标距离）
-                12.0,                        // 快速（rad/s）
-                0.5,                         // 扭矩限制（N⋅m）
-                1000));
+                8.0,                         // 快速（rad/s）
+                1.0,                         // 扭矩限制（N⋅m）
+                10000));
 
         then(std::make_shared<DelayAction>("stabilize_wait", 50));
 
         then(std::make_shared<ZeroCalibrationAction>(belt_zero_calibration));
 
         if (enable_force_calibration) {
-            double target_force_value = is_first_shot ? 16000.0 : target_force;
+            double target_force_value = is_first_shot ? 21800.0 : target_force;
             double tolerance_value = is_first_shot ? 0.5 : force_tolerance;
 
-            then(
-                std::make_shared<ForceScrewCalibrationAction>(
-                    "force_screw_calibration", force_screw_velocity, current_force_ch1,
-                    current_force_ch2, force_channel, target_force_value, tolerance_value,
-                    force_settle_ticks, force_timeout_ticks, force_kp, force_ki, force_kd, 5.0));
+            if (use_kalman_force && kalman_filtered_force != nullptr
+                && kalman_force_rate != nullptr) {
+                // Use Kalman-filtered force (already in Newtons)
+                then(
+                    std::make_shared<ForceScrewCalibrationAction>(
+                        "force_calibration_kalman", force_screw_velocity, *kalman_filtered_force,
+                        *kalman_force_rate, target_force_value, tolerance_value, force_settle_ticks,
+                        force_timeout_ticks, force_kp, force_ki, force_kd, 5.0,
+                        kalman_rate_feedforward, kalman_rate_gain));
+            } else {
+                // Use raw force sensor readings (in grams)
+                then(
+                    std::make_shared<ForceScrewCalibrationAction>(
+                        "force_calibration_raw", force_screw_velocity, current_force_ch1,
+                        current_force_ch2, force_channel, target_force_value, tolerance_value,
+                        force_settle_ticks, force_timeout_ticks, force_kp, force_ki, force_kd,
+                        5.0));
+            }
         }
     }
 };

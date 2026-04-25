@@ -3,8 +3,12 @@
 #include "manager/action/belt_move_action.hpp"
 #include "manager/action/belt_zero_calibration.hpp"
 #include "manager/action/delay_action.hpp"
+#include "manager/action/vision_yaw_calibration.hpp"
 #include "manager/task/task.hpp"
 #include <memory>
+
+#include "manager/action/filling_limit_servo_action.hpp"
+#include <rmcs_msgs/dart_limiting_servo_status.hpp>
 
 #include <rmcs_msgs/dart_slider_status.hpp>
 
@@ -21,7 +25,8 @@ public:
         double& belt_torque_limit, double& belt_hold_torque, bool& belt_wait_zero_velocity,
         const double& left_belt_velocity, const double& right_belt_velocity,
         const double& left_belt_torque, const double& right_belt_torque,
-        bool& belt_zero_calibration)
+        bool& belt_zero_calibration, Eigen::Vector2d* yaw_pitch_angle,
+        const Eigen::Vector2d* yaw_pitch_distance, double yaw_angle_mapping_rate)
         : Task("slider_init", "传送带上行复位并校准零点") {
 
         // 步骤1：同步带上行到机械限位（堵转检测）
@@ -32,7 +37,7 @@ public:
                 belt_target_velocity,                         // 同步带目标速度（输出）
                 belt_torque_limit,                            // 同步带力矩限制（输出）
                 belt_hold_torque,                             // 同步带保持力矩（输出）
-                belt_wait_zero_velocity,                      // Wait 时使用零速闭环还是保留力矩
+                belt_wait_zero_velocity,                      // Wait
                 left_belt_velocity,                           // 左同步带反馈（输入）
                 right_belt_velocity,                          // 右同步带反馈（输入）
                 left_belt_torque,                             // 左同步带力矩（输入）
@@ -52,9 +57,14 @@ public:
         then(std::make_shared<DelayAction>("stabilize_wait", 50));
 
         then(std::make_shared<ZeroCalibrationAction>(belt_zero_calibration));
-    }
 
-private:
+        // 视觉校准步骤（如果视觉未启动，使用默认值0也是安全的）
+        // if (yaw_pitch_angle && yaw_pitch_distance) {
+        //     then(
+        //         std::make_shared<VisionYawCalibration>(
+        //             *yaw_pitch_angle, *yaw_pitch_distance, yaw_angle_mapping_rate));
+        // }
+    }
 };
 
 } // namespace rmcs_dart_guidance::manager

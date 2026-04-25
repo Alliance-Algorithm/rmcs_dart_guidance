@@ -4,6 +4,7 @@
 #include "video_recorder.hpp"
 #include <atomic>
 #include <chrono>
+#include <eigen3/Eigen/Dense>
 #include <hikcamera/image_capturer.hpp>
 #include <memory>
 #include <mutex>
@@ -103,6 +104,9 @@ public:
         register_output("/dart_guidance/camera/display_image", display_image_);
         register_output("/dart_guidance/camera/target_position", target_position_, PointT(-1, -1));
         register_output("/dart_guidance/tracker/tracking", tracking_);
+        register_output(
+            "/dart_guidance/tracker/yaw_pitch_target_distance", yaw_pitch_distance_,
+            Eigen::Vector2d::Zero());
         if (enable_image_saving_) {
             RCLCPP_INFO(logger_, "Image saving enabled:");
             RCLCPP_INFO(logger_, "  Directory: %s", save_directory_.c_str());
@@ -257,7 +261,9 @@ private:
                 is_tracker_stage_ = true;
                 tracker_.Init(initial_position);
 
-                *target_position_ = initial_position;
+                // Output relative position (target - center)
+                cv::Point2i diff = *target_position_ - image_center_;
+                *yaw_pitch_distance_ = Eigen::Vector2d(diff.x, diff.y);
                 *tracking_ = true;
             }
         } else {
@@ -328,6 +334,7 @@ private:
     std::atomic<bool> is_running_{true};
 
     cv::Scalar lower_limit_default_, upper_limit_default_;
+    cv::Point2i image_center_{701, 565};
 
     hikcamera::ImageCapturer::CameraProfile camera_profile_;
     std::unique_ptr<hikcamera::ImageCapturer> image_capture_;
@@ -336,6 +343,8 @@ private:
     OutputInterface<cv::Mat> display_image_;
     OutputInterface<bool> tracking_;
     OutputInterface<cv::Point2i> target_position_;
+
+    OutputInterface<Eigen::Vector2d> yaw_pitch_distance_;
 
     DartGuidanceIdentifier identifier_;
     DartGuidanceTracker tracker_;

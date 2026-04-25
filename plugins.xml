@@ -11,6 +11,9 @@
   <class type="rmcs_dart_guidance::ImagePublisher" base_class_type="rmcs_executor::Component">
     <description>test node.</description>
   </class>
+  <class type="rmcs_dart_guidance::ImageDisplayer" base_class_type="rmcs_executor::Component">
+    <description>test node.</description>
+  </class>
   <class type="rmcs_dart_guidance::manager::DartManager" base_class_type="rmcs_executor::Component">
     <description>Dart task manager: schedules Actions and Tasks, manages state machine and error recovery.</description>
   </class>
@@ -23,5 +26,8 @@
   <class type="rmcs_dart_guidance::manager::DartManagerForFillingTest" base_class_type="rmcs_executor::Component">
     <description>Dart task manager ForFillingTest: 4-shot group counting with lifting and limiting servo control.</description>
   </class>
-  
+  <class type="rmcs_dart_guidance::test::ForceSensorRecorder" base_class_type="rmcs_executor::Component">
+    <description>Records force sensor dual-channel readings before fire command, with dual counting logic (total shots and round number).</description>
+  </class>
+
 </library>

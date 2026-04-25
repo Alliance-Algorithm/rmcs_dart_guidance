@@ -62,13 +62,20 @@ public:
         register_input("/force_sensor/channel_1/weight", current_force_ch1_);
         register_input("/force_sensor/channel_2/weight", current_force_ch2_);
 
-        register_input("/dart/manager/command", remote_command_input_, false);
-        register_input("/dart/manager/web_command", web_command_input_, false);
+        // Kalman filter inputs (optional, for force calibration)
+        register_input("/dart/kalman/filtered_force", kalman_filtered_force_, false);
+        register_input("/dart/kalman/force_rate", kalman_force_rate_, false);
 
-        register_input("/remote/joystick/left", joystick_left_, false);
-        register_input("/remote/joystick/right", joystick_right_, false);
-        register_input("/dart_guidance/camera/target_position", target_position_input_, false);
-        register_input("/dart_guidance/tracker/tracking", target_tracking_input_, false);
+        // register_input("/dart_guidance/camera/target_position", target_position_);
+
+        register_input("/dart/manager/command", remote_command_input_);
+        register_input("/dart/manager/web_command", web_command_input_);
+
+        register_input("/remote/joystick/left", joystick_left_);
+        register_input("/remote/joystick/right", joystick_right_);
+        // register_input("/dart_guidance/tracker/tracking", target_tracking_input_);
+        // register_input("/dart_guidance/tracker/yaw_pitch_target_distance",
+        // target_position_input_);
 
         register_output(
             "/dart/manager/belt/command", belt_command_, rmcs_msgs::DartSliderStatus::WAIT);
@@ -84,6 +91,7 @@ public:
 
         register_output(
             "/pitch/control/velocity", yaw_pitch_control_velocity_, Eigen::Vector2d::Zero());
+        register_output("/pitch/control/angle", yaw_pitch_control_angle_, Eigen::Vector2d::Zero());
         register_output("/force/control/velocity", force_control_velocity_, 0.0);
         register_output("/dart/manager/aim/ready", aim_ready_, false);
         register_output(
@@ -102,7 +110,13 @@ public:
             "/dart/manager/limiting/command", limiting_command_,
             rmcs_msgs::DartLimitingServoStatus::LOCK);
 
+        // 力传感器记录触发信号（给ForceSensorRecorder组件使用）
+        register_output("/dart/manager/fire_trigger", fire_trigger_, false);
+
+        yaw_transform_rate_ = get_parameter("yaw_transform_rate").as_double();
         manual_force_scale_ = get_parameter("manual_force_scale").as_double();
+
+        enable_pixel_to_angle_ = get_parameter("enable_pixel_to_angle").as_bool();
 
         launch_prepare_enable_visual_assist_ =
             get_parameter("launch_prepare_enable_visual_assist").as_bool();
@@ -127,8 +141,20 @@ public:
             force_channel_ = 1;
         }
 
+        // Kalman filter force calibration mode
+        use_kalman_force_ = get_parameter_or("use_kalman_force", false);
+        kalman_rate_feedforward_ = get_parameter_or("kalman_rate_feedforward", false);
+        kalman_rate_gain_ = get_parameter_or("kalman_rate_gain", 0.0);
+
+        if (use_kalman_force_) {
+            RCLCPP_INFO(
+                get_logger(), "[DartManager] Kalman force mode enabled: rate_ff=%d, rate_gain=%.3f",
+                kalman_rate_feedforward_, kalman_rate_gain_);
+        }
+
         state_pub_ = create_publisher<std_msgs::msg::UInt8>("/dart/manager/state", 10);
 
+        temporary_flag_ = true;
         sync_current_dart_outputs();
         clear_auto_aim_feedback();
         submit_task(make_slider_init_task());
@@ -136,7 +162,13 @@ public:
     }
 
     void update() override {
-        refresh_auto_aim_inputs();
+        // 重置fire触发信号（单次脉冲）
+        *fire_trigger_ = false;
+
+        if (temporary_flag_) {
+            submit_task(make_slider_init_task());
+        }
+        temporary_flag_ = false;
         poll_command();
 
         switch (state_) {
@@ -147,6 +179,14 @@ public:
     }
 
 private:
+    template <typename T>
+    T get_parameter_or(const std::string& name, T default_value) {
+        if (has_parameter(name)) {
+            return get_parameter(name).get_value<T>();
+        }
+        return default_value;
+    }
+
     void poll_command() {
         std::string cmd;
 
@@ -272,9 +312,8 @@ private:
                 }
             }
 
-            // 处理 cancel_launch 任务完成 - 重置 fire_count
+            // 处理 cancel_launch 任务完成
             if (completed_task_name == "cancel_launch") {
-                fire_count_ = 0;
                 RCLCPP_INFO(
                     logger_, "[DartManager] cancel_launch completed, fire_count reset to 0");
             }
@@ -324,16 +363,6 @@ private:
             msg.data = static_cast<uint8_t>(new_state);
             state_pub_->publish(msg);
         }
-    }
-
-    void refresh_auto_aim_inputs() {
-        if (target_position_input_.ready()) {
-            current_target_position_ = *target_position_input_;
-        } else {
-            current_target_position_ = cv::Point2i(-1, -1);
-        }
-
-        current_target_tracking_ = target_tracking_input_.ready() ? *target_tracking_input_ : false;
     }
 
     double get_numeric_parameter_or_throw(const std::string& name) const {
@@ -411,7 +440,6 @@ private:
         aim_ready_confirm_ticks_ = has_parameter("aim_ready_confirm_ticks")
                                      ? get_uint_parameter_or_throw("aim_ready_confirm_ticks")
                                      : 5;
-        aim_timeout_ticks_ = get_uint_parameter_or_throw("aim_timeout_ticks");
         aim_min_transform_rate_ = has_parameter("aim_min_transform_rate")
                                     ? get_numeric_parameter_or_throw("aim_min_transform_rate")
                                     : 0.0;
@@ -496,10 +524,20 @@ private:
     }
 
     std::shared_ptr<Task> make_slider_init_task() {
+        // 为视觉接口提供默认值，即使视觉模块未启动也能正常工作
+        static Eigen::Vector2d default_target_position = Eigen::Vector2d::Zero();
+
+        // yaw_pitch_control_angle_ 是 OutputInterface，总是有效的
+        // target_positionfire_count_input_ 是 InputInterface，需要检查是否 ready
+        const Eigen::Vector2d* target_position_ptr =
+            target_position_input_.ready() ? &(*target_position_input_) : &default_target_position;
+
+        RCLCPP_INFO(logger_, "slider_init_task_GO");
         return std::make_shared<SliderInitTask>(
             *belt_command_, *belt_target_velocity_, *belt_torque_limit_, *belt_hold_torque_,
             *belt_wait_zero_velocity_, *left_belt_velocity_, *right_belt_velocity_,
-            *left_belt_torque_, *right_belt_torque_, *belt_zero_calibration_);
+            *left_belt_torque_, *right_belt_torque_, *belt_zero_calibration_,
+            &(*yaw_pitch_control_angle_), target_position_ptr, yaw_transform_rate_);
     }
 
     // 任务工厂
@@ -526,17 +564,34 @@ private:
                 logger_, "[DartManager] Belt params: down_distance=%.4f m, pulley_radius=%.4f m",
                 belt_down_distance_, down_velocity);
 
-            // 记录当前力值（用于下次fire前的力矩闭环，根据 force_channel_ 选择通道）
-            bool force_ready =
-                (force_channel_ == 2) ? current_force_ch2_.ready() : current_force_ch1_.ready();
-            if (force_ready) {
-                last_fire_force_ = static_cast<double>(
-                    force_channel_ == 2 ? *current_force_ch2_ : *current_force_ch1_);
+            // 读取力值用于力矩闭环（不在此处记录）
+            bool ch1_ready = current_force_ch1_.ready();
+            bool ch2_ready = current_force_ch2_.ready();
+
+            int force_ch1_value = ch1_ready ? *current_force_ch1_ : 0;
+            int force_ch2_value = ch2_ready ? *current_force_ch2_ : 0;
+
+            // 根据 force_channel_ 选择主控通道
+            if (force_channel_ == 2 && ch2_ready) {
+                last_fire_force_ = static_cast<double>(force_ch2_value);
+            } else if (force_channel_ == 1 && ch1_ready) {
+                last_fire_force_ = static_cast<double>(force_ch1_value);
+            }
+
+            // Prepare Kalman filter pointers (if enabled and ready)
+            const double* kalman_force_ptr = nullptr;
+            const double* kalman_rate_ptr = nullptr;
+            if (use_kalman_force_ && kalman_filtered_force_.ready() && kalman_force_rate_.ready()) {
+                kalman_force_ptr = &(*kalman_filtered_force_);
+                kalman_rate_ptr = &(*kalman_force_rate_);
                 RCLCPP_INFO(
-                    logger_, "[DartManager] Recorded force before fire: %.2f (ch%d)",
-                    last_fire_force_, force_channel_);
-            } else {
-                RCLCPP_WARN(logger_, "[DartManager] Force sensor NOT READY, using last value");
+                    logger_, "[DartManager] Using Kalman force: F_filt=%.1fN, dF/dt=%.1fN/s",
+                    *kalman_force_ptr, *kalman_rate_ptr);
+            } else if (use_kalman_force_) {
+                RCLCPP_WARN(
+                    logger_,
+                    "[DartManager] use_kalman_force=true but Kalman inputs not ready, falling back "
+                    "to raw sensors");
             }
 
             return std::make_shared<LaunchPreparationTask>(
@@ -548,7 +603,8 @@ private:
                 *belt_zero_calibration_, *force_control_velocity_, *current_force_ch1_,
                 *current_force_ch2_, force_channel_, last_fire_force_, enable_force_calibration_,
                 force_tolerance_, force_settle_ticks_, force_timeout_ticks_, force_kp_, force_ki_,
-                force_kd_, is_first_shot);
+                force_kd_, is_first_shot, use_kalman_force_, kalman_force_ptr, kalman_rate_ptr,
+                kalman_rate_feedforward_, kalman_rate_gain_);
         }
 
         if (cmd == "unload" || cmd == "cancel_launch") {
@@ -559,10 +615,14 @@ private:
                 *right_belt_angle_, *left_belt_velocity_, *right_belt_velocity_,
                 *trigger_lock_enable_, *lifting_command_, *lifting_left_vel_fb_,
                 *lifting_right_vel_fb_, belt_down_distance_, *belt_zero_calibration_,
-                require_lifting_up);
+                *force_control_velocity_, require_lifting_up);
         }
 
         if (cmd == "fire") {
+            // 触发力传感器记录（由独立的ForceSensorRecorder组件处理）
+            *fire_trigger_ = true;
+            RCLCPP_INFO(logger_, "[DartManager] Fire command received, trigger signal sent");
+
             bool is_first_shot = (fire_count_ == 0);
             return std::make_shared<FireAndPreloadTask>(
                 *trigger_lock_enable_, *lifting_command_, *lifting_left_vel_fb_,
@@ -614,8 +674,8 @@ private:
 
     InputInterface<Eigen::Vector2d> joystick_left_;
     InputInterface<Eigen::Vector2d> joystick_right_;
-    InputInterface<cv::Point2i> target_position_input_;
-    InputInterface<bool> target_tracking_input_;
+    InputInterface<Eigen::Vector2d> target_position_input_;
+    // InputInterface<bool> target_tracking_input_;
 
     // 升降速度反馈（FillingLiftAction 堵转检测用）
     InputInterface<double> lifting_left_vel_fb_;
@@ -627,6 +687,10 @@ private:
     InputInterface<int> current_force_ch1_;
     InputInterface<int> current_force_ch2_;
 
+    // Kalman filter inputs (optional)
+    InputInterface<double> kalman_filtered_force_;
+    InputInterface<double> kalman_force_rate_;
+
     OutputInterface<rmcs_msgs::DartSliderStatus> belt_command_;
     OutputInterface<double> belt_target_velocity_;
     OutputInterface<double> belt_torque_limit_;
@@ -637,8 +701,10 @@ private:
     OutputInterface<double> belt_error_gain_;
     OutputInterface<bool> belt_use_decel_pid_;
     OutputInterface<bool> trigger_lock_enable_;
+    OutputInterface<bool> fire_trigger_; // 力传感器记录触发信号
 
     OutputInterface<Eigen::Vector2d> yaw_pitch_control_velocity_;
+    OutputInterface<Eigen::Vector2d> yaw_pitch_control_angle_;
     OutputInterface<double> force_control_velocity_;
     OutputInterface<bool> aim_ready_;
     OutputInterface<uint8_t> aim_current_dart_index_;
@@ -649,10 +715,14 @@ private:
     OutputInterface<rmcs_msgs::DartLimitingServoStatus> limiting_command_;
 
     double max_transform_rate_{500.0};
+    double yaw_transform_rate_;
     double manual_force_scale_{5.0};
     double auto_aim_max_transform_rate_{500.0};
 
-    double belt_down_distance_{0.0}; // m
+    double belt_down_distance_{0.0};     // m
+
+    // 像素到角度映射参数
+    bool enable_pixel_to_angle_{false};
 
     // 力矩闭环参数
     bool enable_force_calibration_{false};
@@ -664,6 +734,11 @@ private:
     double force_kd_{0.01};
     int force_channel_{1};        // 1 = ch1, 2 = ch2
 
+    // Kalman filter force calibration
+    bool use_kalman_force_{false};
+    bool kalman_rate_feedforward_{false};
+    double kalman_rate_gain_{0.0};
+
     bool launch_prepare_enable_visual_assist_{false};
     AutoAimFeedback auto_aim_feedback_;
     DartLaunchSequence dart_launch_sequence_;
@@ -673,11 +748,7 @@ private:
     double aim_yaw_gain_{0.0};
     double aim_pitch_gain_{0.0};
     uint64_t aim_ready_confirm_ticks_{5};
-    uint64_t aim_timeout_ticks_{3000};
     double aim_min_transform_rate_{0.0};
-    cv::Point2i current_target_position_{-1, -1};
-    bool current_target_tracking_{false};
-
     InputInterface<std::string> remote_command_input_;
     InputInterface<std::string> web_command_input_;
     std::string last_command_;
@@ -692,6 +763,10 @@ private:
     uint32_t fire_count_{0};      // 当前轮次已完成发射数
     bool first_tick_of_task_{true};
     double last_fire_force_{0.0}; // 上次fire前记录的力值
+
+    bool temporary_flag_ = true;
+
+    InputInterface<Eigen::Vector2d> target_position_;
 };
 
 } // namespace rmcs_dart_guidance::manager
