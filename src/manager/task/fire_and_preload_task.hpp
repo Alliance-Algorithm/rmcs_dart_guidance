@@ -24,43 +24,50 @@ public:
         rmcs_msgs::DartLimitingServoStatus& limiting_command, bool is_first_shot = false)
         : Task("fire", "发射并预装填") {
 
+        then(
+            std::make_shared<FillingLimitServoAction>(
+                limiting_command,                         // 限位舵机状态（输出）
+                rmcs_msgs::DartLimitingServoStatus::FREE, // 先释放
+                rmcs_msgs::DartLimitingServoStatus::LOCK  // 再锁回
+                ));
+
         // 第一发特殊处理：只解锁扳机，无需升降和预装填
-        if (is_first_shot) {
-            then(
-                std::make_shared<TriggerControlAction>(
-                    trigger_lock_enable,                      // 扳机锁定使能（输出）
-                    false,                                    // 解锁（false）
-                    500                                       // 等待释放完成帧数
-                    ));
-            return;
-        } else {
-            then(
-                std::make_shared<TriggerControlAction>(
-                    trigger_lock_enable,                      // 扳机锁定使能（输出）
-                    false,                                    // 解锁（false）
-                    500                                       // 等待释放完成帧数
-                    ));
+        //     if (is_first_shot) {
+        //         then(
+        //             std::make_shared<TriggerControlAction>(
+        //                 trigger_lock_enable,                      // 扳机锁定使能（输出）
+        //                 false,                                    // 解锁（false）
+        //                 500                                       // 等待释放完成帧数
+        //                 ));
+        //         return;
+        //     } else {
+        //         then(
+        //             std::make_shared<TriggerControlAction>(
+        //                 trigger_lock_enable,                      // 扳机锁定使能（输出）
+        //                 false,                                    // 解锁（false）
+        //                 500                                       // 等待释放完成帧数
+        //                 ));
 
-            then(
-                std::make_shared<FillingLiftAction>(
-                    "filling_lift_up",                        // 动作名称
-                    lifting_command,                          // 升降指令（输出）
-                    rmcs_msgs::DartSliderStatus::UP,          // 指令状态
-                    lifting_left_vel_fb,                      // 左升降电机速度反馈（输入）
-                    lifting_right_vel_fb,                     // 右升降电机速度反馈（输入）
-                    0.5,                                      // 堵转速度阈值
-                    100,                                      // 堵转确认帧数
-                    500,                                      // 最短运行帧数
-                    5000                                      // 超时帧数
-                    ));
+        //         then(
+        //             std::make_shared<FillingLiftAction>(
+        //                 "filling_lift_up",                        // 动作名称
+        //                 lifting_command,                          // 升降指令（输出）
+        //                 rmcs_msgs::DartSliderStatus::UP,          // 指令状态
+        //                 lifting_left_vel_fb,                      // 左升降电机速度反馈（输入）
+        //                 lifting_right_vel_fb,                     // 右升降电机速度反馈（输入）
+        //                 0.5,                                      // 堵转速度阈值
+        //                 100,                                      // 堵转确认帧数
+        //                 500,                                      // 最短运行帧数
+        //                 5000                                      // 超时帧数
+        //                 ));
 
-            then(
-                std::make_shared<FillingLimitServoAction>(
-                    limiting_command,                         // 限位舵机状态（输出）
-                    rmcs_msgs::DartLimitingServoStatus::FREE, // 先释放
-                    rmcs_msgs::DartLimitingServoStatus::LOCK  // 再锁回
-                    ));
-        }
+        //         then(
+        //             std::make_shared<FillingLimitServoAction>(
+        //                 limiting_command,                         // 限位舵机状态（输出）
+        //                 rmcs_msgs::DartLimitingServoStatus::FREE, // 先释放
+        //                 rmcs_msgs::DartLimitingServoStatus::LOCK  // 再锁回
+        //                 ));
+        //     }
     }
 };
 

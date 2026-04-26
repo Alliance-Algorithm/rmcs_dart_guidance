@@ -6,6 +6,7 @@
 #include "manager/action/belt_zero_calibration.hpp"
 #include "manager/action/delay_action.hpp"
 #include "manager/action/filling_lift_action.hpp"
+#include "manager/action/filling_limit_servo_action.hpp"
 #include "manager/action/force_screw_calibration_action.hpp"
 #include "manager/action/trigger_control_action.hpp"
 #include "manager/task/task.hpp"
@@ -39,6 +40,12 @@ public:
         bool kalman_rate_feedforward = false, double kalman_rate_gain = 0.0)
         : Task("launch_preparation", "发射准备（传送带下行 + 扳机锁定 + 上行复位）") {
 
+        then(
+            std::make_shared<FillingLimitServoAction>(
+                limiting_command,                         // 限位舵机状态（输出）
+                rmcs_msgs::DartLimitingServoStatus::FREE, // 先释放
+                rmcs_msgs::DartLimitingServoStatus::LOCK  // 再锁回
+                ));
         // 步骤1：传送带匀速下行到目标位置（使用速度控制+多圈角度反馈）
         // 注意：target_distance为正值表示下行（角度增大方向）
         then(

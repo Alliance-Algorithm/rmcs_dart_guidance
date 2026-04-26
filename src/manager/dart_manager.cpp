@@ -1,8 +1,6 @@
 #include "manager/action/action.hpp"
 #include "manager/action/manual_angle_control.hpp"
 #include "manager/action/manual_force_control.hpp"
-#include "manager/auto_aim_feedback.hpp"
-#include "manager/dart_launch_sequence.hpp"
 #include "manager/task/cancel_launch_task.hpp"
 #include "manager/task/fire_and_preload_task.hpp"
 #include "manager/task/launch_preparation_task.hpp"
@@ -100,8 +98,6 @@ public:
         register_output("/dart/manager/aim/error_px", aim_error_px_, Eigen::Vector2d::Zero());
         register_output(
             "/dart/manager/aim/desired_target_px", aim_desired_target_px_, Eigen::Vector2d::Zero());
-        auto_aim_feedback_.bind(
-            *yaw_pitch_control_velocity_, *aim_ready_, *aim_error_px_, *aim_desired_target_px_);
 
         // 升降指令总线
         register_output(
@@ -118,11 +114,6 @@ public:
 
         enable_pixel_to_angle_ = get_parameter("enable_pixel_to_angle").as_bool();
 
-        launch_prepare_enable_visual_assist_ =
-            get_parameter("launch_prepare_enable_visual_assist").as_bool();
-        if (launch_prepare_enable_visual_assist_) {
-            load_auto_aim_configuration();
-        }
         belt_down_distance_ = get_parameter("belt_down_distance").as_double(); // m
 
         enable_force_calibration_ = get_parameter("enable_force_calibration").as_bool();
@@ -154,9 +145,6 @@ public:
 
         state_pub_ = create_publisher<std_msgs::msg::UInt8>("/dart/manager/state", 10);
 
-        temporary_flag_ = true;
-        sync_current_dart_outputs();
-        clear_auto_aim_feedback();
         submit_task(make_slider_init_task());
         RCLCPP_INFO(logger_, "[DartManager] initialized, queued SliderInitTask on startup");
     }
@@ -165,10 +153,6 @@ public:
         // 重置fire触发信号（单次脉冲）
         *fire_trigger_ = false;
 
-        if (temporary_flag_) {
-            submit_task(make_slider_init_task());
-        }
-        temporary_flag_ = false;
         poll_command();
 
         switch (state_) {
@@ -251,7 +235,6 @@ private:
         *limiting_command_ = rmcs_msgs::DartLimitingServoStatus::LOCK;
         *yaw_pitch_control_velocity_ = Eigen::Vector2d::Zero();
         *force_control_velocity_ = 0.0;
-        clear_auto_aim_feedback();
 
         transition_to(State::IDLE);
     }
@@ -266,10 +249,6 @@ private:
 
         first_fill_pending_ = true;
         *limiting_command_ = rmcs_msgs::DartLimitingServoStatus::LOCK;
-        if (launch_prepare_enable_visual_assist_) {
-            reset_dart_sequence();
-        }
-        clear_auto_aim_feedback();
 
         // 无论 ERROR 还是 IDLE，都重新排队传送带复位
         submit_task(make_slider_init_task());
@@ -307,9 +286,6 @@ private:
             if (completed_task_name == "fire") {
                 fire_count_++;
                 RCLCPP_INFO(logger_, "[DartManager] fire completed, fire_count=%u", fire_count_);
-                if (launch_prepare_enable_visual_assist_) {
-                    advance_dart_sequence_after_fire();
-                }
             }
 
             // 处理 cancel_launch 任务完成
@@ -339,7 +315,6 @@ private:
         *limiting_command_ = rmcs_msgs::DartLimitingServoStatus::LOCK;
         *yaw_pitch_control_velocity_ = Eigen::Vector2d::Zero();
         *force_control_velocity_ = 0.0; // 停止丝杆电机（已包含）
-        clear_auto_aim_feedback();
 
         transition_to(State::ERROR);
     }
@@ -416,111 +391,13 @@ private:
         if (values.size() != 2) {
             throw std::runtime_error("Parameter must contain exactly 2 values: " + name);
         }
-        return Eigen::Vector2d(values[0], values[1]);
+        return {values[0], values[1]};
     }
 
-    void load_auto_aim_configuration() {
-        int64_t dart_count = 4;
-        if (has_parameter("dart_count")) {
-            dart_count = get_parameter("dart_count").as_int();
-        }
-
-        aim_deadband_px_ = has_parameter("aim_deadband_px")
-                             ? get_vector2_parameter_or_throw("aim_deadband_px")
-                             : Eigen::Vector2d::Constant(3.0);
-        aim_ready_exit_deadband_px_ =
-            has_parameter("aim_ready_exit_deadband_px")
-                ? get_vector2_parameter_or_throw("aim_ready_exit_deadband_px")
-                : Eigen::Vector2d::Constant(5.0);
-        aim_accept_deadband_px_ = has_parameter("aim_accept_deadband_px")
-                                    ? get_vector2_parameter_or_throw("aim_accept_deadband_px")
-                                    : aim_ready_exit_deadband_px_;
-        aim_yaw_gain_ = get_numeric_parameter_or_throw("aim_yaw_gain");
-        aim_pitch_gain_ = get_numeric_parameter_or_throw("aim_pitch_gain");
-        aim_ready_confirm_ticks_ = has_parameter("aim_ready_confirm_ticks")
-                                     ? get_uint_parameter_or_throw("aim_ready_confirm_ticks")
-                                     : 5;
-        aim_min_transform_rate_ = has_parameter("aim_min_transform_rate")
-                                    ? get_numeric_parameter_or_throw("aim_min_transform_rate")
-                                    : 0.0;
-        auto_aim_max_transform_rate_ =
-            has_parameter("auto_aim_max_transform_rate")
-                ? get_numeric_parameter_or_throw("auto_aim_max_transform_rate")
-                : max_transform_rate_;
-
-        if (aim_deadband_px_.x() < 0.0 || aim_deadband_px_.y() < 0.0) {
-            throw std::runtime_error("Parameter aim_deadband_px must be non-negative");
-        }
-        if (aim_ready_exit_deadband_px_.x() < aim_deadband_px_.x()
-            || aim_ready_exit_deadband_px_.y() < aim_deadband_px_.y()) {
-            throw std::runtime_error(
-                "Parameter aim_ready_exit_deadband_px must be >= aim_deadband_px");
-        }
-        if (aim_accept_deadband_px_.x() < aim_ready_exit_deadband_px_.x()
-            || aim_accept_deadband_px_.y() < aim_ready_exit_deadband_px_.y()) {
-            throw std::runtime_error(
-                "Parameter aim_accept_deadband_px must be >= aim_ready_exit_deadband_px");
-        }
-        if (aim_min_transform_rate_ < 0.0) {
-            throw std::runtime_error("Parameter aim_min_transform_rate must be non-negative");
-        }
-        if (auto_aim_max_transform_rate_ < 0.0) {
-            throw std::runtime_error("Parameter auto_aim_max_transform_rate must be non-negative");
-        }
-        if (aim_min_transform_rate_ > auto_aim_max_transform_rate_) {
-            throw std::runtime_error(
-                "Parameter aim_min_transform_rate must be <= auto_aim_max_transform_rate");
-        }
-
-        dart_launch_sequence_.configure_from_parameter_values(
-            DartLaunchSequenceRawConfig{
-                .dart_count = dart_count,
-                .aim_reference_pixel = get_numeric_array_parameter_or_throw("aim_reference_pixel"),
-                .aim_dart_offsets_px = get_numeric_array_parameter_or_throw("aim_dart_offsets_px"),
-            });
-    }
-
-    Eigen::Vector2d current_desired_target_px() const {
-        return launch_prepare_enable_visual_assist_
-                 ? dart_launch_sequence_.current_desired_target_px()
-                 : Eigen::Vector2d::Zero();
-    }
-
-    void sync_current_dart_outputs() {
-        *aim_current_dart_index_ = launch_prepare_enable_visual_assist_
-                                     ? dart_launch_sequence_.current_dart_index_u8()
-                                     : static_cast<uint8_t>(0);
-        auto_aim_feedback_.set_desired_target_px(current_desired_target_px());
-    }
-
-    void clear_auto_aim_feedback() {
-        *aim_current_dart_index_ = launch_prepare_enable_visual_assist_
-                                     ? dart_launch_sequence_.current_dart_index_u8()
-                                     : static_cast<uint8_t>(0);
-        auto_aim_feedback_.reset(current_desired_target_px());
-    }
-
-    void reset_dart_sequence() {
-        if (launch_prepare_enable_visual_assist_) {
-            dart_launch_sequence_.reset();
-        }
-        sync_current_dart_outputs();
-    }
-
-    void advance_dart_sequence_after_fire() {
-        if (!dart_launch_sequence_.advance_after_fire()) {
-            RCLCPP_WARN(logger_, "[DartManager] current dart index already at the last dart");
-        }
-        sync_current_dart_outputs();
-        clear_auto_aim_feedback();
-    }
-
-    void prepare_outputs_for_task(const Task& task) {
+    static void prepare_outputs_for_task(const Task& task) {
         if (task.name() == "launch_preparation" || task.name() == "fire"
             || task.name() == "cancel_launch" || task.name() == "slider_init"
-            || task.name() == "manual_angle" || task.name() == "manual_force") {
-            clear_auto_aim_feedback();
-        }
+            || task.name() == "manual_angle" || task.name() == "manual_force") {}
     }
 
     std::shared_ptr<Task> make_slider_init_task() {
@@ -633,9 +510,8 @@ private:
             auto task = std::make_shared<Task>("manual_angle", "手动 yaw/pitch 调整");
             task->then(
                 std::make_shared<DartManualAngleControlAction>(
-                    auto_aim_feedback_.yaw_pitch_control_velocity()[0],
-                    auto_aim_feedback_.yaw_pitch_control_velocity()[1], *joystick_left_,
-                    *joystick_right_, max_transform_rate_));
+                    yaw_pitch_control_velocity_->x(), yaw_pitch_control_velocity_->y(),
+                    *joystick_left_, *joystick_right_, max_transform_rate_));
             return task;
         }
 
@@ -717,7 +593,6 @@ private:
     double max_transform_rate_{500.0};
     double yaw_transform_rate_;
     double manual_force_scale_{5.0};
-    double auto_aim_max_transform_rate_{500.0};
 
     double belt_down_distance_{0.0};     // m
 
@@ -739,16 +614,6 @@ private:
     bool kalman_rate_feedforward_{false};
     double kalman_rate_gain_{0.0};
 
-    bool launch_prepare_enable_visual_assist_{false};
-    AutoAimFeedback auto_aim_feedback_;
-    DartLaunchSequence dart_launch_sequence_;
-    Eigen::Vector2d aim_deadband_px_{Eigen::Vector2d::Constant(3.0)};
-    Eigen::Vector2d aim_ready_exit_deadband_px_{Eigen::Vector2d::Constant(5.0)};
-    Eigen::Vector2d aim_accept_deadband_px_{Eigen::Vector2d::Constant(8.0)};
-    double aim_yaw_gain_{0.0};
-    double aim_pitch_gain_{0.0};
-    uint64_t aim_ready_confirm_ticks_{5};
-    double aim_min_transform_rate_{0.0};
     InputInterface<std::string> remote_command_input_;
     InputInterface<std::string> web_command_input_;
     std::string last_command_;
@@ -763,8 +628,6 @@ private:
     uint32_t fire_count_{0};      // 当前轮次已完成发射数
     bool first_tick_of_task_{true};
     double last_fire_force_{0.0}; // 上次fire前记录的力值
-
-    bool temporary_flag_ = true;
 
     InputInterface<Eigen::Vector2d> target_position_;
 };
