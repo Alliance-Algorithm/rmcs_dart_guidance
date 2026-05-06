@@ -1,26 +1,32 @@
 #include "manager/resources/task_factory.hpp"
 
+#include "manager/resources/tasks/belt_init_task.hpp"
 #include "manager/resources/tasks/cancel_launch_task.hpp"
-#include "manager/resources/tasks/fire_and_preload_task.hpp"
 #include "manager/resources/tasks/filling_lift_task.hpp"
+#include "manager/resources/tasks/fire_and_preload_task.hpp"
 #include "manager/resources/tasks/launch_preparation_task.hpp"
 #include "manager/resources/tasks/launch_preparation_with_vision_task.hpp"
 #include "manager/resources/tasks/manual_control_task.hpp"
-#include "manager/resources/tasks/slider_init_task.hpp"
+#include "manager/resources/tasks/carriage_init_task.hpp"
+#include "manager/resources/tasks/carriage_travel_task.hpp"
 #include "manager/resources/tasks/trigger_control_task.hpp"
 
 namespace rmcs_dart_guidance::manager {
 
-std::shared_ptr<Task> make_slider_init_task(
+std::shared_ptr<Task> make_belt_init_task(
     const ManagerInputContext& input, ManagerOutputContext& output,
     const ManagerSettings& settings) {
-    return std::make_shared<SliderInitTask>(input, output, settings);
+    return std::make_shared<BeltInitTask>(input, output, settings);
 }
 
 std::shared_ptr<Task> make_task(
     const std::string& cmd, const ManagerInputContext& input, ManagerOutputContext& output,
     const ManagerSettings& settings, const VisionAimProfileProvider& profile_provider,
-    const ManagerRuntimeState& runtime_state) {
+    ManagerRuntimeState& runtime_state) {
+    if (cmd == "belt_init" || cmd == "belt-init") {
+        return std::make_shared<BeltInitTask>(input, output, settings);
+    }
+
     if (cmd == "launch_prepare" || cmd == "launch-prepare") {
         return std::make_shared<LaunchPreparationTask>(input, output, settings, runtime_state);
     }
@@ -56,6 +62,14 @@ std::shared_ptr<Task> make_task(
 
     if (cmd == "manual_control" || cmd == "manual-control" || cmd == "manual") {
         return std::make_shared<ManualControlTask>(input, output, settings);
+    }
+
+    if (cmd == "carriage_init" || cmd == "carriage-init") {
+        return std::make_shared<CarriageInitTask>(input, output, settings, runtime_state);
+    }
+
+    if (cmd == "carriage_travel" || cmd == "carriage-travel") {
+        return std::make_shared<CarriageTravelTask>(input, output, settings, runtime_state);
     }
 
     return nullptr;

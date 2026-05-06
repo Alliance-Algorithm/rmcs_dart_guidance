@@ -13,6 +13,7 @@ namespace rmcs_dart_guidance::manager {
 
 /* 键位映射：
     双下：全部停止 -> "cancel"
+    双上：预留自定义命令 -> 参数 "double_up_command"
     左拨杆 DOWN->MIDDLE：恢复 -> "recover"
     左拨杆在中：
         右拨杆 MIDDLE->DOWN：切换上膛/退膛 -> "launch_prepare" / "launch_cancel"
@@ -64,6 +65,13 @@ public:
             return;
         }
 
+        if (detect_carriage_init_transition(left, right)) {
+            emit_command("carriage_init");
+            RCLCPP_INFO(logger_, "[RemoteCommandBridge] carriage_init");
+            update_previous_switches(left, right);
+            return;
+        }
+
         if (detect_enter_manual_control(left)) {
             emit_command("manual_control");
             RCLCPP_INFO(logger_, "[RemoteCommandBridge] enter manual_control");
@@ -86,8 +94,8 @@ public:
                     chambered_ = false;
                     RCLCPP_INFO(logger_, "[RemoteCommandBridge] prepare toggle -> launch_cancel");
                 } else {
-                    emit_command("launch_prepare");
-                    // emit_command("launch_prepare_with_vision");
+                    // emit_command("launch_prepare");
+                    emit_command("launch_prepare_with_vision");
                     chambered_ = true;
                     RCLCPP_INFO(logger_, "[RemoteCommandBridge] prepare toggle -> launch_prepare");
                 }
@@ -109,6 +117,12 @@ public:
 
 private:
     void emit_command(const std::string& cmd) { *command_output_ = cmd; }
+
+    bool detect_carriage_init_transition(
+        rmcs_msgs::Switch current_left, rmcs_msgs::Switch current_right) const {
+        return current_left == rmcs_msgs::Switch::UP && current_right == rmcs_msgs::Switch::DOWN
+            && (prev_left_ != rmcs_msgs::Switch::UP || prev_right_ != rmcs_msgs::Switch::DOWN);
+    }
 
     bool detect_enter_manual_control(rmcs_msgs::Switch current_left) const {
         return current_left == rmcs_msgs::Switch::UP && prev_left_ != rmcs_msgs::Switch::UP;

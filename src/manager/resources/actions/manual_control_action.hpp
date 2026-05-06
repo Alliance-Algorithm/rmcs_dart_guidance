@@ -27,6 +27,8 @@ public:
         double& belt_target_velocity,                       //
         rmcs_msgs::ExitMode& belt_exit_mode,                //
         rmcs_msgs::DartServoCommand& trigger_command,       //
+        double& carriage_target_velocity,                     //
+        double& force_max_velocity_override,                //
         int32_t& force_error,                               //
         Eigen::Vector2d& angle_error_vector,                //
         double angle_max_error,                             //
@@ -43,6 +45,8 @@ public:
         , belt_target_velocity_output_interface_(belt_target_velocity)
         , belt_exit_mode_output_interface_(belt_exit_mode)
         , trigger_command_output_interface_(trigger_command)
+        , carriage_target_velocity_output_interface_(carriage_target_velocity)
+        , force_max_velocity_override_output_interface_(force_max_velocity_override)
         , force_error_interface_(force_error)
         , angle_error_vector_output_interface_(angle_error_vector)
         , angle_max_error_(angle_max_error)
@@ -54,6 +58,8 @@ public:
         belt_command_output_interface_ = rmcs_msgs::DartMechanismCommand::WAIT;
         belt_target_velocity_output_interface_ = 0.0;
         apply_trigger_command();
+        carriage_target_velocity_output_interface_ = 0.0;
+        force_max_velocity_override_output_interface_ = std::numeric_limits<double>::quiet_NaN();
         force_error_interface_ = 0;
         angle_error_vector_output_interface_ = Eigen::Vector2d::Zero();
     }
@@ -66,6 +72,8 @@ public:
         belt_exit_mode_output_interface_ = rmcs_msgs::ExitMode::WAIT_ZERO_VELOCITY;
         belt_command_output_interface_ = rmcs_msgs::DartMechanismCommand::WAIT;
         belt_target_velocity_output_interface_ = 0.0;
+        carriage_target_velocity_output_interface_ = 0.0;
+        force_max_velocity_override_output_interface_ = std::numeric_limits<double>::quiet_NaN();
         force_error_interface_ = 0;
         angle_error_vector_output_interface_ = Eigen::Vector2d::Zero();
 
@@ -89,6 +97,7 @@ public:
 
             const double raw_force_error = -remote_right_joystic_.x() * force_max_error_;
             force_error_interface_ = clamp_to_int32(std::lround(raw_force_error));
+            carriage_target_velocity_output_interface_ = 0.0;
         }
 
         return ActionStatus::RUNNING;
@@ -98,6 +107,8 @@ public:
         belt_command_output_interface_ = rmcs_msgs::DartMechanismCommand::WAIT;
         belt_target_velocity_output_interface_ = 0.0;
         belt_exit_mode_output_interface_ = rmcs_msgs::ExitMode::WAIT_ZERO_VELOCITY;
+        carriage_target_velocity_output_interface_ = 0.0;
+        force_max_velocity_override_output_interface_ = std::numeric_limits<double>::quiet_NaN();
         force_error_interface_ = 0;
         angle_error_vector_output_interface_ = Eigen::Vector2d::Zero();
     }
@@ -136,6 +147,8 @@ private:
     double& belt_target_velocity_output_interface_;
     rmcs_msgs::ExitMode& belt_exit_mode_output_interface_;
     rmcs_msgs::DartServoCommand& trigger_command_output_interface_;
+    double& carriage_target_velocity_output_interface_;
+    double& force_max_velocity_override_output_interface_;
     int32_t& force_error_interface_;
     Eigen::Vector2d& angle_error_vector_output_interface_;
 

@@ -2,8 +2,11 @@
 
 ## 基础自动动作
 
-- slider_init
+- belt_init
     - belt_up
+
+- carriage_init
+    - carriage_init
 
 - launch_prepare
     - (fire_count == 0) belt_down(wait) -> trigger_lock -> belt_up
@@ -40,4 +43,3 @@
 - 手动控制力度（以恒定速度）
 - 手动控制同步带上下（退出时零速闭环）
 - 手动控制填装机构升降（以恒定速度）
-

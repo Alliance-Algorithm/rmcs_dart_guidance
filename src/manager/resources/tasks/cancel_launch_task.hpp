@@ -4,7 +4,6 @@
 #include "manager/manager_types.hpp"
 #include "manager/resources/actions/belt_control_action.hpp"
 #include "manager/resources/actions/trigger_control_action.hpp"
-
 #include <memory>
 
 namespace rmcs_dart_guidance::manager {

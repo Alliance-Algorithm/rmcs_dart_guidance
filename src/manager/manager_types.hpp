@@ -47,6 +47,11 @@ struct ManagerInputContext {
     const double& lift_right_velocity;
     const double& lift_right_torque;
 
+    // carriage
+    const double& carriage_angle;
+    const double& carriage_velocity;
+    const double& carriage_torque;
+
     // trigger
 
     // limit servo
@@ -85,8 +90,13 @@ struct ManagerOutputContext {
     // limit servo
     rmcs_msgs::DartServoCommand& limiting_command;
 
+    // carriage
+    rmcs_msgs::DartMechanismCommand& carriage_command;
+    double& carriage_target_velocity;
+
     // yaw pitch force
     int32_t& force_error;
+    double& force_max_velocity_override;
     Eigen::Vector2d& angle_error_vector;
 };
 
@@ -107,6 +117,14 @@ struct ManagerSettings {
     double lift_stall_torque_threshold;
     uint64_t lift_stall_confirm_ticks;
 
+    // carriage
+    double carriage_down_setting_velocity;
+    double carriage_travel_distance;
+    double carriage_up_setting_velocity;
+    double carriage_stall_velocity_threshold;
+    double carriage_stall_torque_threshold;
+    uint64_t carriage_stall_confirm_ticks;
+
     // trigger
 
     // limit servo
@@ -122,6 +140,7 @@ struct ManagerSettings {
 struct ManagerRuntimeState {
     uint32_t fire_count{0};
     ManagerLifecycleState lifecycle_state{ManagerLifecycleState::IDLE};
+    std::optional<double> carriage_init_reference_angle;
 };
 
 struct ManagerQueuedTaskInfo {

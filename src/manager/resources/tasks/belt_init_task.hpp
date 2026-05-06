@@ -7,12 +7,12 @@
 
 namespace rmcs_dart_guidance::manager {
 
-class SliderInitTask : public Task {
+class BeltInitTask : public Task {
 public:
-    SliderInitTask(
+    BeltInitTask(
         const ManagerInputContext& input, ManagerOutputContext& output,
         const ManagerSettings& settings)
-        : Task("slider_init", "传送带上行复位") {
+        : Task("belt_init", "传送带上行复位") {
 
         then(
             std::make_shared<BeltControlAction>(
