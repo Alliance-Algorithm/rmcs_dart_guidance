@@ -94,8 +94,8 @@ public:
                     chambered_ = false;
                     RCLCPP_INFO(logger_, "[RemoteCommandBridge] prepare toggle -> launch_cancel");
                 } else {
-                    // emit_command("launch_prepare");
-                    emit_command("launch_prepare_with_vision");
+                    emit_command("launch_prepare");
+                    // emit_command("launch_prepare_with_vision");
                     chambered_ = true;
                     RCLCPP_INFO(logger_, "[RemoteCommandBridge] prepare toggle -> launch_prepare");
                 }
