@@ -19,78 +19,97 @@ public:
         const ManagerInputContext& input, ManagerOutputContext& output,
         const ManagerSettings& settings, const ManagerRuntimeState& runtime_state)
         : Task("launch_prepare", "滑块发射准备") {
-
+        if (runtime_state.fire_count > 0) {
+            then(
+                std::make_shared<BeltTravelAction>(
+                    "belt_down_travel_1",                      // 动作名称
+                    output.belt_command,                       // 同步带命令接口
+                    output.belt_target_velocity,               // 同步带目标速度接口
+                    output.belt_exit_mode,                     // 电机退出状态接口
+                    input.belt_left_angle,
+                    input.belt_left_velocity,                  // 左电机速度反馈
+                    input.belt_left_torque,                    // 左电机力矩反馈
+                    input.belt_right_angle,
+                    input.belt_right_velocity,                 // 右电机速度反馈
+                    input.belt_right_torque,                   // 右电机力矩反馈
+                    rmcs_msgs::DartMechanismCommand::DOWN,     // 同步带命令设置
+                    settings.belt_down_setting_velocity * 1.8, // 同步带目标速度设置
+                    rmcs_msgs::ExitMode::WAIT_ZERO_VELOCITY,   // 电机退出模式设置
+                    settings.belt_down_travel_angle * 3.3,
+                    20000                                      // 超时时间 ms
+                    ));
+        } else {
+            then(
+                std::make_shared<BeltTravelAction>(
+                    "belt_down_travel_1",                      // 动作名称
+                    output.belt_command,                       // 同步带命令接口
+                    output.belt_target_velocity,               // 同步带目标速度接口
+                    output.belt_exit_mode,                     // 电机退出状态接口
+                    input.belt_left_angle,
+                    input.belt_left_velocity,                  // 左电机速度反馈
+                    input.belt_left_torque,                    // 左电机力矩反馈
+                    input.belt_right_angle,
+                    input.belt_right_velocity,                 // 右电机速度反馈
+                    input.belt_right_torque,                   // 右电机力矩反馈
+                    rmcs_msgs::DartMechanismCommand::DOWN,     // 同步带命令设置
+                    settings.belt_down_setting_velocity * 1.0, // 同步带目标速度设置
+                    rmcs_msgs::ExitMode::WAIT_ZERO_VELOCITY,   // 电机退出模式设置
+                    settings.belt_down_travel_angle * 3.3,
+                    20000                                      // 超时时间 ms
+                    ));
+        }
         then(
             std::make_shared<BeltTravelAction>(
-                "belt_down_travel_1",                        // 动作名称
-                output.belt_command,                         // 同步带命令接口
-                output.belt_target_velocity,                 // 同步带目标速度接口
-                output.belt_exit_mode,                       // 电机退出状态接口
+                "belt_down_travel_2",                          // 动作名称
+                output.belt_command,                           // 同步带命令接口
+                output.belt_target_velocity,                   // 同步带目标速度接口
+                output.belt_exit_mode,                         // 电机退出状态接口
                 input.belt_left_angle,
-                input.belt_left_velocity,                    // 左电机速度反馈
-                input.belt_left_torque,                      // 左电机力矩反馈
+                input.belt_left_velocity,                      // 左电机速度反馈
+                input.belt_left_torque,                        // 左电机力矩反馈
                 input.belt_right_angle,
-                input.belt_right_velocity,                   // 右电机速度反馈
-                input.belt_right_torque,                     // 右电机力矩反馈
-                rmcs_msgs::DartMechanismCommand::DOWN,       // 同步带命令设置
-                settings.belt_down_setting_velocity * 1.8,   // 同步带目标速度设置
-                rmcs_msgs::ExitMode::WAIT_ZERO_VELOCITY,     // 电机退出模式设置
-                settings.belt_down_travel_angle * 3.3,
-                20000                                        // 超时时间 ms
-                ));
-
-        then(
-            std::make_shared<BeltTravelAction>(
-                "belt_down_travel_2",                        // 动作名称
-                output.belt_command,                         // 同步带命令接口
-                output.belt_target_velocity,                 // 同步带目标速度接口
-                output.belt_exit_mode,                       // 电机退出状态接口
-                input.belt_left_angle,
-                input.belt_left_velocity,                    // 左电机速度反馈
-                input.belt_left_torque,                      // 左电机力矩反馈
-                input.belt_right_angle,
-                input.belt_right_velocity,                   // 右电机速度反馈
-                input.belt_right_torque,                     // 右电机力矩反馈
-                rmcs_msgs::DartMechanismCommand::DOWN,       // 同步带命令设置
-                settings.belt_down_setting_velocity * 0.8,   // 同步带目标速度设置
-                rmcs_msgs::ExitMode::WAIT_HOLD_TORQUE,       // 电机退出模式设置
+                input.belt_right_velocity,                     // 右电机速度反馈
+                input.belt_right_torque,                       // 右电机力矩反馈
+                rmcs_msgs::DartMechanismCommand::DOWN,         // 同步带命令设置
+                settings.belt_down_setting_velocity * 0.8,     // 同步带目标速度设置
+                rmcs_msgs::ExitMode::WAIT_HOLD_TORQUE,         // 电机退出模式设置
                 settings.belt_down_travel_angle * 0.5,
-                10000                                        // 超时时间 ms
+                10000                                          // 超时时间 ms
                 ));
 
         if (runtime_state.fire_count > 0) {
             then(
                 std::make_shared<TriggerControlAction>(
-                    "trigger_lock",                          //
-                    output.trigger_command,                  //
-                    rmcs_msgs::DartServoCommand::LOCK,       //
-                    100                                      //
+                    "trigger_lock",                            //
+                    output.trigger_command,                    //
+                    rmcs_msgs::DartServoCommand::LOCK,         //
+                    100                                        //
                     ));
             then(
                 std::make_shared<FillingLiftAction>(
-                    "filling_lift_down",                     // 动作名称
-                    output.lifting_command,                  // 升降命令接口
-                    output.lift_target_velocity,             // 升降目标速度接口
-                    output.lift_exit_mode,                   // 电机退出状态接口
-                    input.lift_left_velocity,                // 左电机速度反馈
-                    input.lift_left_torque,                  // 左电机力矩反馈
-                    input.lift_right_velocity,               // 右电机速度反馈
-                    input.lift_right_torque,                 // 右电机力矩反馈
-                    rmcs_msgs::DartMechanismCommand::DOWN,   // 升降命令设置
-                    settings.lift_target_velocity,           // 同步带目标速度设置
-                    rmcs_msgs::ExitMode::WAIT_ZERO_VELOCITY, // 电机退出模式设置
-                    settings.lift_stall_velocity_threshold,  // 堵转速度阈值
-                    settings.lift_stall_torque_threshold,    // 堵转力矩阈值
-                    settings.lift_stall_confirm_ticks,       // 堵转确认帧数
-                    20000                                    // 超时时间 ms
+                    "filling_lift_down",                       // 动作名称
+                    output.lifting_command,                    // 升降命令接口
+                    output.lift_target_velocity,               // 升降目标速度接口
+                    output.lift_exit_mode,                     // 电机退出状态接口
+                    input.lift_left_velocity,                  // 左电机速度反馈
+                    input.lift_left_torque,                    // 左电机力矩反馈
+                    input.lift_right_velocity,                 // 右电机速度反馈
+                    input.lift_right_torque,                   // 右电机力矩反馈
+                    rmcs_msgs::DartMechanismCommand::DOWN,     // 升降命令设置
+                    settings.lift_target_velocity,             // 同步带目标速度设置
+                    rmcs_msgs::ExitMode::WAIT_ZERO_VELOCITY,   // 电机退出模式设置
+                    settings.lift_stall_velocity_threshold,    // 堵转速度阈值
+                    settings.lift_stall_torque_threshold,      // 堵转力矩阈值
+                    settings.lift_stall_confirm_ticks,         // 堵转确认帧数
+                    20000                                      // 超时时间 ms
                     ));
         } else {
             then(
                 std::make_shared<TriggerControlAction>(
-                    "trigger_lock",                          //
-                    output.trigger_command,                  //
-                    rmcs_msgs::DartServoCommand::LOCK,       //
-                    1000                                     //
+                    "trigger_lock",                            //
+                    output.trigger_command,                    //
+                    rmcs_msgs::DartServoCommand::LOCK,         //
+                    1000                                       //
                     ));
         }
 
@@ -139,17 +158,19 @@ public:
                 output.belt_command,                        // 同步带命令接口
                 output.belt_target_velocity,                // 同步带目标速度接口
                 output.belt_exit_mode,                      // 电机退出状态接口
+                output.belt_max_torque_override,            // 电机力矩上限覆盖接口
                 input.belt_left_velocity,                   // 左电机速度反馈
                 input.belt_left_torque,                     // 左电机力矩反馈
                 input.belt_right_velocity,                  // 右电机速度反馈
                 input.belt_right_torque,                    // 右电机力矩反馈
                 rmcs_msgs::DartMechanismCommand::UP,        // 同步带命令设置
-                settings.belt_up_setting_velocity * 0.2,    // 同步带目标速度设置
+                settings.belt_up_setting_velocity * 0.3,    // 同步带目标速度设置
                 rmcs_msgs::ExitMode::WAIT_ZERO_VELOCITY,    // 电机退出模式设置
-                settings.belt_stall_velocity_threshold * 2, // 堵转速度阈值
+                settings.belt_stall_velocity_threshold,     // 堵转速度阈值
                 settings.belt_stall_torque_threshold * 0.5, // 堵转力矩阈值
                 settings.belt_stall_confirm_ticks,          // 堵转确认帧数
-                20000                                       // 超时时间 ms
+                20000,                                      // 超时时间 ms
+                settings.belt_init_max_torque               // 力矩上限
                 ));
 
         // then(

@@ -7,12 +7,12 @@
 
 namespace rmcs_dart_guidance::manager {
 
-class SliderInitTask : public Task {
+class BeltInitTask : public Task {
 public:
-    SliderInitTask(
+    BeltInitTask(
         const ManagerInputContext& input, ManagerOutputContext& output,
         const ManagerSettings& settings)
-        : Task("slider_init", "传送带上行复位") {
+        : Task("belt_init", "传送带上行复位") {
 
         then(
             std::make_shared<BeltControlAction>(
@@ -20,17 +20,19 @@ public:
                 output.belt_command,                        // 同步带命令接口
                 output.belt_target_velocity,                // 同步带目标速度接口
                 output.belt_exit_mode,                      // 电机退出状态接口
+                output.belt_max_torque_override,            // 电机力矩上限覆盖接口
                 input.belt_left_velocity,                   // 左电机速度反馈
                 input.belt_left_torque,                     // 左电机力矩反馈
                 input.belt_right_velocity,                  // 右电机速度反馈
                 input.belt_right_torque,                    // 右电机力矩反馈
                 rmcs_msgs::DartMechanismCommand::UP,        // 同步带命令设置
-                settings.belt_up_setting_velocity,          // 同步带目标速度设置
+                settings.belt_init_setting_velocity,        // 同步带目标速度设置
                 rmcs_msgs::ExitMode::WAIT_ZERO_VELOCITY,    // 电机退出模式设置
-                settings.belt_stall_velocity_threshold,     // 堵转速度阈值
-                settings.belt_stall_torque_threshold * 1.5, // 堵转力矩阈值
-                50,                                         // 堵转确认帧数
-                10000                                       // 超时时间 ms
+                settings.belt_init_stall_velocity_threshold,// 堵转速度阈值
+                settings.belt_init_stall_torque_threshold,  // 堵转力矩阈值
+                settings.belt_init_stall_confirm_ticks,     // 堵转确认帧数
+                10000,                                      // 超时时间 ms
+                settings.belt_init_max_torque               // 力矩上限
                 ));
     }
 };

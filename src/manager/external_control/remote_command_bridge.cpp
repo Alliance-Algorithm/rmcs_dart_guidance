@@ -13,6 +13,7 @@ namespace rmcs_dart_guidance::manager {
 
 /* 键位映射：
     双下：全部停止 -> "cancel"
+    左上右下：丝杆初始化 -> "carriage_init"
     左拨杆 DOWN->MIDDLE：恢复 -> "recover"
     左拨杆在中：
         右拨杆 MIDDLE->DOWN：切换上膛/退膛 -> "launch_prepare" / "launch_cancel"
@@ -35,6 +36,7 @@ public:
         register_output("/dart/manager/command", command_output_, std::string{});
 
         vision_enable_ = get_parameter("vision_enable").as_bool();
+        RCLCPP_INFO(logger_, "[RemoteCommandBridge] initialized");
     }
 
     void before_updating() override {
@@ -63,6 +65,13 @@ public:
             return;
         }
 
+        if (detect_carriage_init_transition(left, right)) {
+            emit_command("carriage_init");
+            RCLCPP_INFO(logger_, "[RemoteCommandBridge] carriage_init");
+            update_previous_switches(left, right);
+            return;
+        }
+
         if (detect_enter_manual_control(left)) {
             emit_command("manual_control");
             RCLCPP_INFO(logger_, "[RemoteCommandBridge] enter manual_control");
@@ -85,7 +94,7 @@ public:
                     chambered_ = false;
                     RCLCPP_INFO(logger_, "[RemoteCommandBridge] prepare toggle -> launch_cancel");
                 } else {
-                    auto fire_task_name =
+                    const char* fire_task_name =
                         vision_enable_ ? "launch_prepare_with_vision" : "launch_prepare";
                     emit_command(fire_task_name);
                     chambered_ = true;
@@ -110,6 +119,12 @@ public:
 
 private:
     void emit_command(const std::string& cmd) { *command_output_ = cmd; }
+
+    bool detect_carriage_init_transition(
+        rmcs_msgs::Switch current_left, rmcs_msgs::Switch current_right) const {
+        return current_left == rmcs_msgs::Switch::UP && current_right == rmcs_msgs::Switch::DOWN
+            && (prev_left_ != rmcs_msgs::Switch::UP || prev_right_ != rmcs_msgs::Switch::DOWN);
+    }
 
     bool detect_enter_manual_control(rmcs_msgs::Switch current_left) const {
         return current_left == rmcs_msgs::Switch::UP && prev_left_ != rmcs_msgs::Switch::UP;

@@ -4,7 +4,6 @@
 #include "manager/manager_types.hpp"
 #include "manager/resources/actions/belt_control_action.hpp"
 #include "manager/resources/actions/trigger_control_action.hpp"
-
 #include <memory>
 
 namespace rmcs_dart_guidance::manager {
@@ -106,6 +105,7 @@ public:
                 output.belt_command,                        // 同步带命令接口
                 output.belt_target_velocity,                // 同步带目标速度接口
                 output.belt_exit_mode,                      // 电机退出状态接口
+                output.belt_max_torque_override,            // 电机力矩上限覆盖接口
                 input.belt_left_velocity,                   // 左电机速度反馈
                 input.belt_left_torque,                     // 左电机力矩反馈
                 input.belt_right_velocity,                  // 右电机速度反馈

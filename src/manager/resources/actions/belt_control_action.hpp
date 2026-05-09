@@ -6,6 +6,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <string>
 
 #include <utility>
@@ -19,6 +20,7 @@ public:
         rmcs_msgs::DartMechanismCommand& belt_command_interface, //
         double& target_velocity_interface,                       //
         rmcs_msgs::ExitMode& exit_mode_interface,                //
+        double& max_torque_override_interface,                   //
         const double& belt_left_velocity,                        //
         const double& belt_left_torque,                          //
         const double& belt_right_velocity,                       //
@@ -29,12 +31,15 @@ public:
         double belt_stall_velocity_threshold,                    //
         double belt_stall_torque_threshold,                      //
         uint64_t belt_stall_confirm_ticks,                       //
-        uint64_t timeout_ticks_setting                           //
+        uint64_t timeout_ticks_setting,                          //
+        double max_torque_override_setting =
+            std::numeric_limits<double>::quiet_NaN()             //
         )
         : IAction(std::move(name))
         , belt_command_(belt_command_interface)
         , belt_target_velocity_(target_velocity_interface)
         , belt_exit_mode_(exit_mode_interface)
+        , belt_max_torque_override_(max_torque_override_interface)
         , belt_left_velocity_(belt_left_velocity)
         , belt_left_torque_(belt_left_torque)
         , belt_right_velocity_(belt_right_velocity)
@@ -45,11 +50,13 @@ public:
         , belt_stall_velocity_threshold_(belt_stall_velocity_threshold)
         , belt_stall_torque_threshold_(belt_stall_torque_threshold)
         , belt_stall_confirm_ticks_(belt_stall_confirm_ticks)
-        , timeout_ticks_(timeout_ticks_setting) {}
+        , timeout_ticks_(timeout_ticks_setting)
+        , max_torque_override_(max_torque_override_setting) {}
 
     void on_enter() override {
         belt_command_ = command_;
         belt_target_velocity_ = target_velocity_;
+        belt_max_torque_override_ = max_torque_override_;
         stall_counter_ = 0;
     }
 
@@ -87,12 +94,14 @@ public:
         belt_command_ = rmcs_msgs::DartMechanismCommand::WAIT;
         belt_target_velocity_ = 0.0;
         belt_exit_mode_ = exit_mode_;
+        belt_max_torque_override_ = std::numeric_limits<double>::quiet_NaN();
     }
 
 private:
     rmcs_msgs::DartMechanismCommand& belt_command_;
     double& belt_target_velocity_;
     rmcs_msgs::ExitMode& belt_exit_mode_;
+    double& belt_max_torque_override_;
     const double& belt_left_velocity_;
     const double& belt_left_torque_;
     const double& belt_right_velocity_;
@@ -106,6 +115,7 @@ private:
     uint64_t belt_stall_confirm_ticks_;
     uint64_t stall_counter_{0};
     uint64_t timeout_ticks_;
+    double max_torque_override_;
 };
 
 class BeltTravelAction : public IAction {

@@ -58,9 +58,10 @@ src/manager/
 
 遥控器映射如下：
 - 双下：`cancel`
+- 左拨杆 `UP` 且右拨杆 `DOWN`：`carriage_init`
 - 左拨杆 `DOWN -> MIDDLE`：`recover`
 - 左拨杆进入 `UP`：`manual_control`
-- 左拨杆保持 `MIDDLE` 且右拨杆 `MIDDLE -> DOWN`：`launch_prepare` / `launch_cancel`
+- 左拨杆保持 `MIDDLE` 且右拨杆 `MIDDLE -> DOWN`：`launch_prepare` / `launch_prepare_with_vision` / `launch_cancel`
 - 左拨杆保持 `MIDDLE` 且右拨杆 `MIDDLE -> UP`：`fire_preload`
 
 内置保留命令包括：
@@ -68,6 +69,7 @@ src/manager/
 - `recover`：从 `ERROR` 状态恢复到 `IDLE`。
 
 其他任务命令（如 `launch_prepare`, `fire_preload`）会在 `poll_command()` 中解析并生成对应的 `Task` 加入队列。
+当 `vision_enable=true` 时，遥控发射准备入口会发出 `launch_prepare_with_vision`；否则发出 `launch_prepare`。
 
 ### 4. 任务调度 (`Task` & `Action`)
 开发者可以通过派生 `Action` 或组装现有的 Action 创建 `Task`。组件层会先组装 `ManagerInputContext`、`ManagerOutputContext`、`ManagerSettings` 和 `ManagerRuntimeState`，再由 `task_factory` 统一创建具体任务，避免 `DartManager` 直接依赖所有自定义资源实现。

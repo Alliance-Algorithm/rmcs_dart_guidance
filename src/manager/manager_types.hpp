@@ -47,6 +47,11 @@ struct ManagerInputContext {
     const double& lift_right_velocity;
     const double& lift_right_torque;
 
+    // carriage
+    const double& carriage_angle;
+    const double& carriage_velocity;
+    const double& carriage_torque;
+
     // trigger
 
     // limit servo
@@ -73,6 +78,7 @@ struct ManagerOutputContext {
     rmcs_msgs::DartMechanismCommand& belt_command;
     double& belt_target_velocity;
     rmcs_msgs::ExitMode& belt_exit_mode;
+    double& belt_max_torque_override;
 
     // lift
     rmcs_msgs::DartMechanismCommand& lifting_command;
@@ -85,8 +91,14 @@ struct ManagerOutputContext {
     // limit servo
     rmcs_msgs::DartServoCommand& limiting_command;
 
+    // carriage
+    rmcs_msgs::DartMechanismCommand& carriage_command;
+    double& carriage_target_velocity;
+
     // yaw pitch force
     int32_t& force_error;
+    double& force_max_velocity_override;
+    double& force_max_torque_override;
     Eigen::Vector2d& angle_error_vector;
 };
 
@@ -96,9 +108,14 @@ struct ManagerSettings {
     double belt_down_travel_angle;
     double belt_up_setting_velocity;
     double belt_up_travel_angle;
+    double belt_init_setting_velocity;
     double belt_stall_velocity_threshold;
     double belt_stall_torque_threshold;
     uint64_t belt_stall_confirm_ticks;
+    double belt_init_stall_velocity_threshold;
+    double belt_init_stall_torque_threshold;
+    uint64_t belt_init_stall_confirm_ticks;
+    double belt_init_max_torque;
     double belt_manual_setting_velocity;
 
     // lift
@@ -106,6 +123,21 @@ struct ManagerSettings {
     double lift_stall_velocity_threshold;
     double lift_stall_torque_threshold;
     uint64_t lift_stall_confirm_ticks;
+
+    // carriage
+    double carriage_down_setting_velocity;
+    double carriage_travel_distance;
+    double carriage_up_setting_velocity;
+    double carriage_adjust_down_distance;
+    double carriage_adjust_up_distance;
+    double carriage_stall_velocity_threshold;
+    double carriage_stall_torque_threshold;
+    uint64_t carriage_stall_confirm_ticks;
+    double carriage_calibration_setting_velocity;
+    double carriage_calibration_stall_velocity_threshold;
+    double carriage_calibration_stall_torque_threshold;
+    uint64_t carriage_calibration_stall_confirm_ticks;
+    double carriage_calibration_max_torque;
 
     // trigger
 
@@ -122,6 +154,7 @@ struct ManagerSettings {
 struct ManagerRuntimeState {
     uint32_t fire_count{0};
     ManagerLifecycleState lifecycle_state{ManagerLifecycleState::IDLE};
+    std::optional<double> carriage_power_cycle_origin_angle;
 };
 
 struct ManagerQueuedTaskInfo {
