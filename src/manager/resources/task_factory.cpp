@@ -57,6 +57,10 @@ std::shared_ptr<Task> make_task(
         return std::make_shared<BeltInitTask>(input, output, settings);
     }
 
+    if (cmd == "carriage_init" || cmd == "carriage-init") {
+        return make_carriage_calibration_task(input, output, settings, runtime_state);
+    }
+
     if (cmd == "launch_prepare" || cmd == "launch-prepare") {
         return std::make_shared<LaunchPreparationTask>(input, output, settings, runtime_state);
     }

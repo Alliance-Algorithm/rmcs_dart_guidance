@@ -13,7 +13,7 @@ namespace rmcs_dart_guidance::manager {
 
 /* 键位映射：
     双下：全部停止 -> "cancel"
-    双上：预留自定义命令 -> 参数 "double_up_command"
+    左上右下：丝杆初始化 -> "carriage_init"
     左拨杆 DOWN->MIDDLE：恢复 -> "recover"
     左拨杆在中：
         右拨杆 MIDDLE->DOWN：切换上膛/退膛 -> "launch_prepare" / "launch_cancel"
@@ -35,6 +35,7 @@ public:
 
         register_output("/dart/manager/command", command_output_, std::string{});
 
+        vision_enable_ = get_parameter("vision_enable").as_bool();
         RCLCPP_INFO(logger_, "[RemoteCommandBridge] initialized");
     }
 
@@ -60,7 +61,6 @@ public:
         if (left == Switch::DOWN && right == Switch::DOWN) {
             emit_command("cancel");
             chambered_ = false;
-            // RCLCPP_INFO(logger_, "[RemoteCommandBridge] cancel");
             update_previous_switches(left, right);
             return;
         }
@@ -94,10 +94,12 @@ public:
                     chambered_ = false;
                     RCLCPP_INFO(logger_, "[RemoteCommandBridge] prepare toggle -> launch_cancel");
                 } else {
-                    emit_command("launch_prepare");
-                    // emit_command("launch_prepare_with_vision");
+                    const char* fire_task_name =
+                        vision_enable_ ? "launch_prepare_with_vision" : "launch_prepare";
+                    emit_command(fire_task_name);
                     chambered_ = true;
-                    RCLCPP_INFO(logger_, "[RemoteCommandBridge] prepare toggle -> launch_prepare");
+                    RCLCPP_INFO(
+                        logger_, "[RemoteCommandBridge] prepare toggle -> %s", fire_task_name);
                 }
                 update_previous_switches(left, right);
                 return;
@@ -154,6 +156,8 @@ private:
     InputInterface<rmcs_msgs::Switch> switch_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
     OutputInterface<std::string> command_output_;
+
+    bool vision_enable_;
 
     rmcs_msgs::Switch prev_left_{rmcs_msgs::Switch::UNKNOWN};
     rmcs_msgs::Switch prev_right_{rmcs_msgs::Switch::UNKNOWN};
