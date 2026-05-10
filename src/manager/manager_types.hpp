@@ -51,6 +51,7 @@ struct ManagerInputContext {
     const double& carriage_angle;
     const double& carriage_velocity;
     const double& carriage_torque;
+    const double& carriage_origin_angle;
 
     // trigger
 
@@ -94,6 +95,8 @@ struct ManagerOutputContext {
     // carriage
     rmcs_msgs::DartMechanismCommand& carriage_command;
     double& carriage_target_velocity;
+    double& carriage_target_angle;
+    double& carriage_origin_angle;
 
     // yaw pitch force
     int32_t& force_error;
@@ -126,18 +129,21 @@ struct ManagerSettings {
 
     // carriage
     double carriage_down_setting_velocity;
-    double carriage_travel_distance;
+    double carriage_down_travel_angle;
     double carriage_up_setting_velocity;
-    double carriage_adjust_down_distance;
-    double carriage_adjust_up_distance;
+    double carriage_adjust_down_angle;
+    double carriage_adjust_up_angle;
     double carriage_stall_velocity_threshold;
     double carriage_stall_torque_threshold;
     uint64_t carriage_stall_confirm_ticks;
-    double carriage_calibration_setting_velocity;
+    double carriage_calibration_velocity;
     double carriage_calibration_stall_velocity_threshold;
     double carriage_calibration_stall_torque_threshold;
     uint64_t carriage_calibration_stall_confirm_ticks;
     double carriage_calibration_max_torque;
+    double carriage_angle_allowable_error;
+    uint64_t carriage_min_run_ticks;
+    uint64_t carriage_timeout_ticks;
 
     // trigger
 
@@ -155,6 +161,7 @@ struct ManagerRuntimeState {
     uint32_t fire_count{0};
     ManagerLifecycleState lifecycle_state{ManagerLifecycleState::IDLE};
     std::optional<double> carriage_power_cycle_origin_angle;
+    std::vector<double> carriage_calibration_origin_samples;
 };
 
 struct ManagerQueuedTaskInfo {

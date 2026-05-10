@@ -88,17 +88,22 @@ public:
         // carriage
         register_output("/dart_manager/carriage/command", carriage_command_);
         register_output("/dart_manager/carriage/target_velocity", carriage_target_velocity_);
+        register_output(
+            "/dart_manager/carriage/target_angle", carriage_target_angle_,
+            std::numeric_limits<double>::quiet_NaN());
+        register_output("/dart_manager/carriage/origin_angle", carriage_origin_angle_);
         register_input("/dart/force_screw_motor/angle", force_screw_angle_);
+        register_input("/dart/force_screw_motor/encoder_angle", force_screw_encoder_angle_);
         register_input("/dart/force_screw_motor/velocity", force_screw_velocity_);
         register_input("/dart/force_screw_motor/torque", force_screw_torque_);
 
         fire_target_ = get_parameter("fire_target").as_string();
-        basement_travel_distance_ = get_parameter("basement_travel_distance").as_double();
-        frontier_travel_distance_ = get_parameter("frontier_travel_distance").as_double();
+        basement_travel_angle_ = get_parameter("basement_travel_angle").as_double();
+        frontier_travel_angle_ = get_parameter("frontier_travel_angle").as_double();
         carriage_down_velocity_ = get_parameter("carriage_down_velocity").as_double();
         carriage_up_velocity_ = get_parameter("carriage_up_velocity").as_double();
-        carriage_adjust_down_distance_ = get_parameter("carriage_adjust_down_distance").as_double();
-        carriage_adjust_up_distance_ = get_parameter("carriage_adjust_up_distance").as_double();
+        carriage_adjust_down_angle_ = get_parameter("carriage_adjust_down_angle").as_double();
+        carriage_adjust_up_angle_ = get_parameter("carriage_adjust_up_angle").as_double();
         carriage_stall_velocity_threshold_ =
             get_parameter("carriage_stall_velocity_threshold").as_double();
         carriage_stall_torque_threshold_ =
@@ -114,18 +119,20 @@ public:
             get_parameter("carriage_calibration_stall_confirm_ticks").as_int());
         carriage_calibration_max_torque_ =
             get_parameter("carriage_calibration_max_torque").as_double();
+        carriage_angle_allowable_error_ =
+            get_parameter("carriage_angle_allowable_error").as_double();
         carriage_min_run_ticks_ =
             static_cast<uint64_t>(get_parameter("carriage_min_run_ticks").as_int());
         carriage_timeout_ticks_ =
             static_cast<uint64_t>(get_parameter("carriage_timeout_ticks").as_int());
 
         if (fire_target_ == "basement") {
-            carriage_travel_distance_ = basement_travel_distance_;
+            carriage_travel_angle_ = basement_travel_angle_;
         } else if (fire_target_ == "frontier") {
-            carriage_travel_distance_ = frontier_travel_distance_;
+            carriage_travel_angle_ = frontier_travel_angle_;
         } else {
             RCLCPP_WARN(logger_, "Invalid fire_target '%s'", fire_target_.c_str());
-            carriage_travel_distance_ = 0.0;
+            carriage_travel_angle_ = 0.0;
         }
 
         // trigger
@@ -194,12 +201,11 @@ public:
             "/dart/manager/debug/last_error", debug_last_error_output_,
             std::optional<ManagerLastErrorInfo>{});
 
-        carriage_position_calibrate_subscription_ =
-            create_subscription<std_msgs::msg::Int32>(
-                "/carriage_position/calibrate", rclcpp::QoS{10},
-                [this](std_msgs::msg::Int32::UniquePtr&& msg) {
-                    carriage_position_calibrate_subscription_callback(std::move(msg));
-                });
+        carriage_position_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
+            "/carriage_position/calibrate", rclcpp::QoS{10},
+            [this](std_msgs::msg::Int32::UniquePtr&& msg) {
+                carriage_position_calibrate_subscription_callback(std::move(msg));
+            });
         carriage_adjust_down_subscription_ = create_subscription<std_msgs::msg::Int32>(
             "/carriage_position/adjust_down", rclcpp::QoS{10},
             [this](std_msgs::msg::Int32::UniquePtr&& msg) {
@@ -220,6 +226,7 @@ public:
         bind_optional_command_inputs();
         bind_optional_manual_inputs();
         bind_optional_vision_inputs();
+        initialize_carriage_origin_from_encoder();
 
         auto input = input_context();
         auto output = output_context();
@@ -231,6 +238,7 @@ public:
     }
 
     void update() override {
+        initialize_carriage_origin_from_encoder();
         poll_commands();
 
         if (runtime_state_.lifecycle_state == ManagerLifecycleState::ERROR) {
@@ -261,6 +269,12 @@ public:
         }
 
         sync_debug_outputs();
+
+        if (log_counter_ % 1000 == 0) {
+            log_counter_ = 0;
+            RCLCPP_INFO(get_logger(), "trigger encoder %f", *force_screw_encoder_angle_);
+        }
+        log_counter_++;
     }
 
 private:
@@ -269,6 +283,16 @@ private:
         std::deque<std::shared_ptr<Task>> task_queue;
         bool first_tick_of_task{true};
     };
+
+    void initialize_carriage_origin_from_encoder() {
+        if (carriage_origin_initialized_ || !force_screw_encoder_angle_.ready()) {
+            return;
+        }
+
+        *carriage_origin_angle_ = *force_screw_encoder_angle_;
+        runtime_state_.carriage_power_cycle_origin_angle = *carriage_origin_angle_;
+        carriage_origin_initialized_ = true;
+    }
 
     void bind_optional_command_inputs() {
         if (!command_input_.ready()) {
@@ -395,21 +419,34 @@ private:
         auto input = input_context();
         auto output = output_context();
         auto manager_settings = settings();
-        auto calibration_task =
-            make_carriage_calibration_task(input, output, manager_settings, runtime_state_);
-        auto travel_task = make_carriage_travel_task(input, output, manager_settings, runtime_state_);
-        if (!calibration_task || !travel_task) {
+        runtime_state_.carriage_calibration_origin_samples.clear();
+        runtime_state_.carriage_power_cycle_origin_angle.reset();
+
+        for (std::size_t index = 0; index < 3; ++index) {
+            auto calibration_task =
+                make_carriage_calibration_task(input, output, manager_settings, runtime_state_);
+            if (!calibration_task) {
+                RCLCPP_ERROR(
+                    logger_,
+                    "[DartManager] failed to create CarriageInitTask from ROS calibration request");
+                return;
+            }
+            submit_task(std::move(calibration_task));
+        }
+
+        auto finalize_task = make_carriage_calibration_finalize_task(
+            input, output, manager_settings, runtime_state_);
+        if (!finalize_task) {
             RCLCPP_ERROR(
-                logger_,
-                "[DartManager] failed to create carriage calibration/travel tasks from ROS calibration request");
+                logger_, "[DartManager] failed to create CarriageInitFinalizeTask from ROS "
+                         "calibration request");
             return;
         }
 
-        submit_task(std::move(calibration_task));
-        submit_task(std::move(travel_task));
+        submit_task(std::move(finalize_task));
         RCLCPP_INFO(
-            logger_,
-            "[DartManager] queued CarriageInitTask + CarriageTravelTask from /carriage_position/calibrate");
+            logger_, "[DartManager] queued 3 CarriageInitTask + CarriageInitFinalizeTask from "
+                     "/carriage_position/calibrate");
     }
 
     void carriage_adjust_down_subscription_callback(std_msgs::msg::Int32::UniquePtr msg) {
@@ -420,7 +457,7 @@ private:
         auto input = input_context();
         auto output = output_context();
         auto manager_settings = settings();
-        auto task = make_carriage_adjust_down_task(input, output, manager_settings, runtime_state_);
+        auto task = make_carriage_adjust_down_task(input, output, manager_settings);
         if (!task) {
             RCLCPP_ERROR(
                 logger_, "[DartManager] failed to create CarriageAdjustDownTask from ROS request");
@@ -428,7 +465,9 @@ private:
         }
 
         submit_task(std::move(task));
-        RCLCPP_INFO(logger_, "[DartManager] queued CarriageAdjustDownTask from /carriage_position/adjust_down");
+        RCLCPP_INFO(
+            logger_,
+            "[DartManager] queued CarriageAdjustDownTask from /carriage_position/adjust_down");
     }
 
     void carriage_adjust_up_subscription_callback(std_msgs::msg::Int32::UniquePtr msg) {
@@ -439,7 +478,7 @@ private:
         auto input = input_context();
         auto output = output_context();
         auto manager_settings = settings();
-        auto task = make_carriage_adjust_up_task(input, output, manager_settings, runtime_state_);
+        auto task = make_carriage_adjust_up_task(input, output, manager_settings);
         if (!task) {
             RCLCPP_ERROR(
                 logger_, "[DartManager] failed to create CarriageAdjustUpTask from ROS request");
@@ -447,7 +486,8 @@ private:
         }
 
         submit_task(std::move(task));
-        RCLCPP_INFO(logger_, "[DartManager] queued CarriageAdjustUpTask from /carriage_position/adjust_up");
+        RCLCPP_INFO(
+            logger_, "[DartManager] queued CarriageAdjustUpTask from /carriage_position/adjust_up");
     }
 
     void submit_task(std::shared_ptr<Task> task) {
@@ -485,19 +525,19 @@ private:
             return ActionStatus::SUCCESS;
         }
 
+        const std::string task_name = task_state_.current_task->name();
         const ActionStatus status = task_state_.first_tick_of_task
                                       ? task_state_.current_task->tick_first()
                                       : task_state_.current_task->tick();
         task_state_.first_tick_of_task = false;
 
         if (status == ActionStatus::SUCCESS) {
-            if (task_state_.current_task->name() == "fire_preload") {
+            if (task_name == "fire_preload") {
                 increment_fire_count();
             }
+            log_carriage_calibration_encoder(task_name);
             task_state_.current_task->finish_success();
-            RCLCPP_INFO(
-                logger_, "[DartManager] task '%s' SUCCESS",
-                task_state_.current_task->name().c_str());
+            RCLCPP_INFO(logger_, "[DartManager] task '%s' SUCCESS", task_name.c_str());
             task_state_.current_task.reset();
             if (task_state_.task_queue.empty()) {
                 transition_to(ManagerLifecycleState::IDLE);
@@ -517,6 +557,25 @@ private:
         }
 
         return status;
+    }
+
+    void log_carriage_calibration_encoder(const std::string& task_name) {
+        if (task_name == "carriage_init") {
+            const auto& samples = runtime_state_.carriage_calibration_origin_samples;
+            if (!samples.empty()) {
+                RCLCPP_INFO(
+                    logger_, "[DartManager] carriage_init calibrated encoder sample[%zu]=%.6f",
+                    samples.size(), samples.back());
+            }
+            return;
+        }
+
+        if (task_name == "carriage_init_finalize"
+            && runtime_state_.carriage_power_cycle_origin_angle.has_value()) {
+            RCLCPP_INFO(
+                logger_, "[DartManager] carriage_init finalized encoder origin=%.6f",
+                *runtime_state_.carriage_power_cycle_origin_angle);
+        }
     }
 
     void on_task_failure() {
@@ -547,6 +606,8 @@ private:
         *trigger_command_ = rmcs_msgs::DartServoCommand::WAIT;
         *limiting_command_ = rmcs_msgs::DartServoCommand::LOCK;
         *carriage_command_ = rmcs_msgs::DartMechanismCommand::WAIT;
+        *carriage_target_velocity_ = 0.0;
+        *carriage_target_angle_ = std::numeric_limits<double>::quiet_NaN();
         *force_error_ = 0;
         *force_max_velocity_override_ = std::numeric_limits<double>::quiet_NaN();
         *force_max_torque_override_ = std::numeric_limits<double>::quiet_NaN();
@@ -636,9 +697,10 @@ private:
             *lift_left_torque_,             //
             *lift_right_velocity_,          //
             *lift_right_torque_,            //
-            *force_screw_angle_,            //
+            *force_screw_encoder_angle_,    //
             *force_screw_velocity_,         //
             *force_screw_torque_,           //
+            *carriage_origin_angle_,        //
             *force_sensor_ch1_,             //
             *force_sensor_ch2_,             //
             *current_target_input_,         //
@@ -665,6 +727,8 @@ private:
             *limiting_command_,             //
             *carriage_command_,             //
             *carriage_target_velocity_,     //
+            *carriage_target_angle_,        //
+            *carriage_origin_angle_,        //
             *force_error_,                  //
             *force_max_velocity_override_,  //
             *force_max_torque_override_,    //
@@ -692,10 +756,10 @@ private:
             lift_stall_torque_threshold_,   //
             lift_stall_confirm_ticks_,      //
             carriage_down_velocity_,
-            carriage_travel_distance_,
+            carriage_travel_angle_,
             carriage_up_velocity_,
-            carriage_adjust_down_distance_,
-            carriage_adjust_up_distance_,
+            carriage_adjust_down_angle_,
+            carriage_adjust_up_angle_,
             carriage_stall_velocity_threshold_,
             carriage_stall_torque_threshold_,
             carriage_stall_confirm_ticks_,
@@ -704,6 +768,9 @@ private:
             carriage_calibration_stall_torque_threshold_,
             carriage_calibration_stall_confirm_ticks_,
             carriage_calibration_max_torque_,
+            carriage_angle_allowable_error_,
+            carriage_min_run_ticks_,
+            carriage_timeout_ticks_,
             limiting_fill_ticks_,           //
             force_setpoint_,                //
             force_allowable_error_,         //
@@ -757,17 +824,20 @@ private:
     // carriage
     OutputInterface<rmcs_msgs::DartMechanismCommand> carriage_command_;
     OutputInterface<double> carriage_target_velocity_;
+    OutputInterface<double> carriage_target_angle_;
+    OutputInterface<double> carriage_origin_angle_;
     InputInterface<double> force_screw_angle_;
+    InputInterface<double> force_screw_encoder_angle_;
     InputInterface<double> force_screw_velocity_;
     InputInterface<double> force_screw_torque_;
     std::string fire_target_;
-    double basement_travel_distance_;
-    double frontier_travel_distance_;
+    double basement_travel_angle_;
+    double frontier_travel_angle_;
     double carriage_down_velocity_;
     double carriage_up_velocity_;
-    double carriage_travel_distance_;
-    double carriage_adjust_down_distance_;
-    double carriage_adjust_up_distance_;
+    double carriage_travel_angle_;
+    double carriage_adjust_down_angle_;
+    double carriage_adjust_up_angle_;
     double carriage_stall_velocity_threshold_;
     double carriage_stall_torque_threshold_;
     uint64_t carriage_stall_confirm_ticks_;
@@ -776,8 +846,10 @@ private:
     double carriage_calibration_stall_torque_threshold_;
     uint64_t carriage_calibration_stall_confirm_ticks_;
     double carriage_calibration_max_torque_;
+    double carriage_angle_allowable_error_;
     uint64_t carriage_min_run_ticks_;
     uint64_t carriage_timeout_ticks_;
+    bool carriage_origin_initialized_{false};
 
     // trigger
     OutputInterface<rmcs_msgs::DartServoCommand> trigger_command_;
@@ -832,6 +904,8 @@ private:
 
     ManagerRuntimeState runtime_state_{};
     TaskState task_state_{};
+
+    int log_counter_ = 0;
 };
 
 } // namespace rmcs_dart_guidance::manager

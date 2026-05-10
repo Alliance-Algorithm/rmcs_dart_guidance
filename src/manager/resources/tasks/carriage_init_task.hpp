@@ -1,17 +1,16 @@
 #pragma once
 
-#include <cstdlib>
 #include <functional>
 #include <memory>
 #include <numeric>
-#include <vector>
 
 #include <rclcpp/logging.hpp>
 
+#include "manager/core/runtime/action.hpp"
 #include "manager/core/runtime/task.hpp"
 #include "manager/manager_types.hpp"
 #include "manager/resources/actions/carriage_control_action.hpp"
-#include "manager/resources/carriage_origin_state.hpp"
+#include "manager/resources/actions/delay_action.hpp"
 
 namespace rmcs_dart_guidance::manager {
 
@@ -37,80 +36,88 @@ public:
         const ManagerInputContext& input, ManagerOutputContext& output,
         const ManagerSettings& settings, ManagerRuntimeState& runtime_state)
         : Task("carriage_init", "丝杆低速堵转初始化") {
-        constexpr std::size_t kCalibrationPassCount = 3;
-        auto carriage_origin_samples = std::make_shared<std::vector<double>>();
-        carriage_origin_samples->reserve(kCalibrationPassCount);
+        constexpr double kCarriageCalibrationReturnEncoderAngle = 778240.0;
+        auto carriage_origin_angle_interface = &output.carriage_origin_angle;
 
-        auto make_record_action = [&runtime_state, carriage_origin_samples]() {
-            return std::make_shared<CallbackAction>(
+        auto make_calibration_action = [&input, &output, &settings]() {
+            return std::make_shared<CarriageControlAction>(
+                "carriage_init", output.carriage_command, output.carriage_target_velocity,
+                output.carriage_origin_angle, output.force_max_torque_override,
+                input.carriage_angle, input.carriage_velocity, input.carriage_torque,
+                rmcs_msgs::DartMechanismCommand::DOWN, settings.carriage_calibration_velocity,
+                settings.carriage_calibration_max_torque,
+                settings.carriage_calibration_stall_velocity_threshold,
+                settings.carriage_calibration_stall_torque_threshold,
+                settings.carriage_calibration_stall_confirm_ticks);
+        };
+
+        auto make_return_action = [&input, &output, &settings,
+                                   kCarriageCalibrationReturnEncoderAngle]() {
+            return std::make_shared<CarriageTravelAction>(
+                "carriage_travel", output.carriage_command, output.carriage_target_velocity,
+                input.carriage_angle, input.carriage_origin_angle, input.carriage_velocity,
+                input.carriage_torque, rmcs_msgs::DartMechanismCommand::UP,
+                settings.carriage_up_setting_velocity, kCarriageCalibrationReturnEncoderAngle,
+                settings.carriage_stall_velocity_threshold,
+                settings.carriage_stall_torque_threshold, settings.carriage_stall_confirm_ticks,
+                CarriageTravelAction::TravelReferenceMode::CURRENT_ANGLE);
+        };
+
+        then(make_calibration_action());
+        then(std::make_shared<DelayAction>("delay", 100));
+        then(
+            std::make_shared<CallbackAction>(
                 "carriage_origin_record",
-                [&runtime_state, carriage_origin_samples](CallbackAction& action) {
-                    if (!runtime_state.carriage_power_cycle_origin_angle.has_value()) {
-                        return action.fail_with(ActionFailureReason::INVALID_INPUT);
-                    }
-                    carriage_origin_samples->push_back(
-                        *runtime_state.carriage_power_cycle_origin_angle);
+                [&runtime_state, carriage_origin_angle_interface](CallbackAction&) {
+                    runtime_state.carriage_calibration_origin_samples.push_back(
+                        *carriage_origin_angle_interface);
                     return ActionStatus::SUCCESS;
-                });
+                }));
+        then(std::make_shared<DelayAction>("delay", 100));
+        then(make_return_action());
+        then(std::make_shared<DelayAction>("delay", 100));
+    }
+};
+
+class CarriageInitFinalizeTask : public Task {
+public:
+    CarriageInitFinalizeTask(
+        const ManagerInputContext& input, ManagerOutputContext& output,
+        const ManagerSettings& settings, ManagerRuntimeState& runtime_state)
+        : Task("carriage_init_finalize", "丝杆初始化平均值收敛") {
+        auto carriage_origin_angle_interface = &output.carriage_origin_angle;
+
+        auto make_return_close_loop_action = [&input, &output, &settings]() {
+            return std::make_shared<CarriageAngleCloseLoopAction>(
+                "carriage_angle_close_loop", output.carriage_command,
+                output.carriage_target_velocity, output.carriage_target_angle, input.carriage_angle,
+                input.carriage_origin_angle, rmcs_msgs::DartMechanismCommand::UP,
+                settings.carriage_up_setting_velocity, settings.carriage_down_travel_angle,
+                settings.carriage_angle_allowable_error, settings.carriage_min_run_ticks,
+                settings.carriage_timeout_ticks);
         };
 
-        auto make_average_action = [&runtime_state, carriage_origin_samples]() {
-            return std::make_shared<CallbackAction>(
-                "carriage_origin_average",
-                [&runtime_state, carriage_origin_samples](CallbackAction& action) {
-                    if (carriage_origin_samples == nullptr
-                        || carriage_origin_samples->size() != kCalibrationPassCount) {
+        then(
+            std::make_shared<CallbackAction>(
+                "carriage_origin_average_finalize",
+                [&runtime_state, carriage_origin_angle_interface](CallbackAction& action) {
+                    constexpr std::size_t kCalibrationPassCount = 3;
+                    if (runtime_state.carriage_calibration_origin_samples.size()
+                        != kCalibrationPassCount) {
                         return action.fail_with(ActionFailureReason::INVALID_INPUT);
                     }
-
-                    const double average_angle =
+                    const double average_origin_angle =
                         std::accumulate(
-                            carriage_origin_samples->begin(), carriage_origin_samples->end(), 0.0)
-                        / static_cast<double>(carriage_origin_samples->size());
-                    runtime_state.carriage_power_cycle_origin_angle = average_angle;
-
-                    std::string error_message;
-                    if (!store_carriage_power_cycle_origin(average_angle, &error_message)) {
-                        if (action.runtime_context().logger != nullptr) {
-                            RCLCPP_ERROR(
-                                *action.runtime_context().logger,
-                                "[carriage_origin_average] failed to persist averaged origin: %s",
-                                error_message.c_str());
-                        }
-                        return action.fail_with(ActionFailureReason::DEPENDENCY_FAILURE);
-                    }
-
+                            runtime_state.carriage_calibration_origin_samples.begin(),
+                            runtime_state.carriage_calibration_origin_samples.end(), 0.0)
+                        / static_cast<double>(kCalibrationPassCount);
+                    *carriage_origin_angle_interface = average_origin_angle;
+                    runtime_state.carriage_power_cycle_origin_angle = average_origin_angle;
+                    runtime_state.carriage_calibration_origin_samples.clear();
                     return ActionStatus::SUCCESS;
-                });
-        };
-
-        for (std::size_t index = 0; index < kCalibrationPassCount; ++index) {
-            then(
-                std::make_shared<CarriageControlAction>(
-                    "carriage_init", output.carriage_command, output.carriage_target_velocity,
-                    output.force_max_torque_override, input.carriage_velocity,
-                    input.carriage_torque, rmcs_msgs::DartMechanismCommand::UP,
-                    settings.carriage_calibration_setting_velocity,
-                    settings.carriage_calibration_max_torque,
-                    settings.carriage_calibration_stall_velocity_threshold,
-                    settings.carriage_calibration_stall_torque_threshold,
-                    settings.carriage_calibration_stall_confirm_ticks, 20000, &input.carriage_angle,
-                    &runtime_state.carriage_power_cycle_origin_angle, false));
-            then(make_record_action());
-            if (index + 1 == kCalibrationPassCount) {
-                then(make_average_action());
-            } else {
-                then(
-                    std::make_shared<CarriageTravelAction>(
-                        "carriage_travel", output.carriage_command, output.carriage_target_velocity,
-                        input.carriage_angle, input.carriage_velocity, input.carriage_torque,
-                        rmcs_msgs::DartMechanismCommand::DOWN, settings.carriage_down_setting_velocity,
-                        0.01, settings.carriage_stall_velocity_threshold,
-                        settings.carriage_stall_torque_threshold,
-                        settings.carriage_stall_confirm_ticks, 20000,
-                        runtime_state.carriage_power_cycle_origin_angle));
-            }
-        }
+                }));
+        then(std::make_shared<DelayAction>("delay", 100));
+        then(make_return_close_loop_action());
     }
 };
 
