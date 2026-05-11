@@ -9,6 +9,12 @@
 
 namespace rmcs_dart_guidance::manager {
 
+// ─────────────────────────────────────────────────────────────────────────────
+// FillingLimitServoAction
+//   填装限位舵机定时动作：进入时先下发触发位命令，在 fill_ticks 到期后自动切回
+//   锁定位并返回 SUCCESS。即使动作被中断，on_exit 也会再次写入锁定位，避免舵机
+//   残留在临时状态。
+// ─────────────────────────────────────────────────────────────────────────────
 class FillingLimitServoAction : public IAction {
 public:
     FillingLimitServoAction(

@@ -15,6 +15,12 @@
 
 namespace rmcs_dart_guidance::manager {
 
+// ─────────────────────────────────────────────────────────────────────────────
+// TriggerCarriagePositionAimAction
+//   发射位丝杆瞄准动作：根据当前发射次数读取 profile 中的触发滑台位置，换算出
+//   相对原点的目标角度，并输出丝杆方向、速度限制和目标角度给下层控制器。
+//   当当前角度进入允许误差范围时返回 SUCCESS；配置缺失或超时则返回相应失败原因。
+// ─────────────────────────────────────────────────────────────────────────────
 class TriggerCarriagePositionAimAction : public IAction {
 public:
     TriggerCarriagePositionAimAction(

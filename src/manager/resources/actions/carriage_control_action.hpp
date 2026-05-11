@@ -11,6 +11,12 @@
 
 namespace rmcs_dart_guidance::manager {
 
+// ─────────────────────────────────────────────────────────────────────────────
+// CarriageControlAction
+//   丝杆堵转标定动作：进入时下发方向、速度和力矩上限覆盖值。
+//   当丝杆在短暂起步窗口之后连续满足“低速且高扭矩”时，认为已顶到机械限位，
+//   将当前编码器角度记为 origin 并返回 SUCCESS。退出时恢复 WAIT 与默认力矩设置。
+// ─────────────────────────────────────────────────────────────────────────────
 class CarriageControlAction : public IAction {
 public:
     CarriageControlAction(
@@ -95,8 +101,15 @@ private:
     uint64_t stall_counter_{0};
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// CarriageTravelAction
+//   丝杆定程动作：以原点角度或进入动作时的当前位置作为参考，按目标方向运动。
+//   当累计位移达到目标角度时返回 SUCCESS；若运动过程中持续堵转，则返回 STALL。
+//   退出时会将丝杆命令恢复到 WAIT。
+// ─────────────────────────────────────────────────────────────────────────────
 class CarriageTravelAction : public IAction {
 public:
+    // 指定位移的参考起点：可使用丝杆原点，也可使用进入动作时的当前角度。
     enum class TravelReferenceMode {
         ORIGIN_ANGLE,
         CURRENT_ANGLE,
@@ -190,6 +203,12 @@ private:
     uint64_t stall_counter_{0};
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// CarriageAngleCloseLoopAction
+//   丝杆角度闭环动作：进入时根据原点和目标方向计算目标角度，并写给下层闭环控制。
+//   在最小运行时间之后，当当前角度进入允许误差范围即返回 SUCCESS；超时则返回
+//   TIMEOUT。退出时清除目标角度并恢复 WAIT。
+// ─────────────────────────────────────────────────────────────────────────────
 class CarriageAngleCloseLoopAction : public IAction {
 public:
     CarriageAngleCloseLoopAction(

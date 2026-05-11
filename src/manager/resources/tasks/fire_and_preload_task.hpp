@@ -12,22 +12,27 @@
 
 namespace rmcs_dart_guidance::manager {
 
-// FireAndPreloadTask — 执行一次发射并完成预装填：
-//   1. 解锁扳机
-//   2. 根据 fire_count 判断是否执行预装填动作
+// ─────────────────────────────────────────────────────────────────────────────
+// FireAndPreloadTask
+//   发射并预装填任务：先短暂延时后释放扳机完成一次发射；如果 fire_count > 0，
+//   则继续执行填装机构上行和限位舵机释放/回锁，完成下一发的预装填准备。
+// ─────────────────────────────────────────────────────────────────────────────
 class FireAndPreloadTask : public Task {
 public:
     FireAndPreloadTask(
         const ManagerInputContext& input, ManagerOutputContext& output,
         const ManagerSettings& settings, const ManagerRuntimeState& runtime_state)
         : Task("fire_preload", "发射并预装填") {
-        then(std::make_shared<DelayAction>("fire_delay", 1000));
+        then(std::make_shared<DelayAction>(
+            "fire_delay",     // 动作名称
+            1000              // 发射前延时 tick
+            ));
         then(
             std::make_shared<TriggerControlAction>(
                 "trigger_free",                              // 动作名称
-                output.trigger_command,                      //
-                rmcs_msgs::DartServoCommand::FREE,           //
-                2000                                         //
+                output.trigger_command,                      // 扳机命令接口
+                rmcs_msgs::DartServoCommand::FREE,           // 扳机释放命令
+                2000                                         // 舵机稳定等待 tick
                 ));
 
         if (runtime_state.fire_count > 0) {
@@ -36,18 +41,18 @@ public:
                     "filling_lift_up",                       // 动作名称
                     output.lifting_command,                  // 升降命令接口
                     output.lift_target_velocity,             // 升降目标速度接口
-                    output.lift_exit_mode,                   // 电机退出状态接口
-                    input.lift_left_velocity,                // 左电机速度反馈
-                    input.lift_left_torque,                  // 左电机力矩反馈
-                    input.lift_right_velocity,               // 右电机速度反馈
-                    input.lift_right_torque,                 // 右电机力矩反馈
-                    rmcs_msgs::DartMechanismCommand::UP,     // 升降命令设置
-                    settings.lift_target_velocity,           // 同步带目标速度设置
-                    rmcs_msgs::ExitMode::WAIT_ZERO_VELOCITY, // 电机退出模式设置
+                    output.lift_exit_mode,                   // 升降退出模式接口
+                    input.lift_left_velocity,                // 左侧升降速度反馈
+                    input.lift_left_torque,                  // 左侧升降力矩反馈
+                    input.lift_right_velocity,               // 右侧升降速度反馈
+                    input.lift_right_torque,                 // 右侧升降力矩反馈
+                    rmcs_msgs::DartMechanismCommand::UP,     // 升降方向
+                    settings.lift_target_velocity,           // 升降目标速度
+                    rmcs_msgs::ExitMode::WAIT_ZERO_VELOCITY, // 退出模式
                     settings.lift_stall_velocity_threshold,  // 堵转速度阈值
                     settings.lift_stall_torque_threshold,    // 堵转力矩阈值
                     settings.lift_stall_confirm_ticks,       // 堵转确认帧数
-                    20000                                    // 超时时间 ms
+                    20000                                    // 超时 tick
                     ));
 
             then(

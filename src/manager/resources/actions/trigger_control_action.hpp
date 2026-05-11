@@ -8,6 +8,11 @@
 
 namespace rmcs_dart_guidance::manager {
 
+// ─────────────────────────────────────────────────────────────────────────────
+// TriggerControlAction
+//   扳机舵机控制动作：进入时立即写入锁定或释放命令，并等待若干 tick 让舵机稳定。
+//   到达 settle_ticks 后返回 SUCCESS。退出时不重置输出，以便扳机状态可跨动作保持。
+// ─────────────────────────────────────────────────────────────────────────────
 class TriggerControlAction : public IAction {
 public:
     TriggerControlAction(
