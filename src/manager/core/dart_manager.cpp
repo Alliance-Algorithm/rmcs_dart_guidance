@@ -102,6 +102,7 @@ public:
         frontier_travel_angle_ = get_parameter("frontier_travel_angle").as_double();
         carriage_down_velocity_ = get_parameter("carriage_down_velocity").as_double();
         carriage_up_velocity_ = get_parameter("carriage_up_velocity").as_double();
+        carriage_startup_origin_angle_ = get_parameter("carriage_startup_origin_angle").as_double();
         carriage_adjust_down_angle_ = get_parameter("carriage_adjust_down_angle").as_double();
         carriage_adjust_up_angle_ = get_parameter("carriage_adjust_up_angle").as_double();
         carriage_stall_velocity_threshold_ =
@@ -134,6 +135,8 @@ public:
             RCLCPP_WARN(logger_, "Invalid fire_target '%s'", fire_target_.c_str());
             carriage_travel_angle_ = 0.0;
         }
+        *carriage_origin_angle_ = carriage_startup_origin_angle_;
+        runtime_state_.carriage_power_cycle_origin_angle = carriage_startup_origin_angle_;
 
         // trigger
         register_output("/dart_manager/trigger/command", trigger_command_);
@@ -226,7 +229,6 @@ public:
         bind_optional_command_inputs();
         bind_optional_manual_inputs();
         bind_optional_vision_inputs();
-        initialize_carriage_origin_from_encoder();
 
         auto input = input_context();
         auto output = output_context();
@@ -238,7 +240,6 @@ public:
     }
 
     void update() override {
-        initialize_carriage_origin_from_encoder();
         poll_commands();
 
         if (runtime_state_.lifecycle_state == ManagerLifecycleState::ERROR) {
@@ -272,7 +273,10 @@ public:
 
         if (log_counter_ % 1000 == 0) {
             log_counter_ = 0;
-            RCLCPP_INFO(get_logger(), "trigger encoder %f", *force_screw_encoder_angle_);
+            RCLCPP_INFO(
+                get_logger(), "[carriage]:origin:%f | current: %f | delta: %f",
+                *carriage_origin_angle_, *force_screw_encoder_angle_,
+                *force_screw_encoder_angle_ - *carriage_origin_angle_);
         }
         log_counter_++;
     }
@@ -283,16 +287,6 @@ private:
         std::deque<std::shared_ptr<Task>> task_queue;
         bool first_tick_of_task{true};
     };
-
-    void initialize_carriage_origin_from_encoder() {
-        if (carriage_origin_initialized_ || !force_screw_encoder_angle_.ready()) {
-            return;
-        }
-
-        *carriage_origin_angle_ = *force_screw_encoder_angle_;
-        runtime_state_.carriage_power_cycle_origin_angle = *carriage_origin_angle_;
-        carriage_origin_initialized_ = true;
-    }
 
     void bind_optional_command_inputs() {
         if (!command_input_.ready()) {
@@ -835,6 +829,7 @@ private:
     double frontier_travel_angle_;
     double carriage_down_velocity_;
     double carriage_up_velocity_;
+    double carriage_startup_origin_angle_;
     double carriage_travel_angle_;
     double carriage_adjust_down_angle_;
     double carriage_adjust_up_angle_;
@@ -849,7 +844,6 @@ private:
     double carriage_angle_allowable_error_;
     uint64_t carriage_min_run_ticks_;
     uint64_t carriage_timeout_ticks_;
-    bool carriage_origin_initialized_{false};
 
     // trigger
     OutputInterface<rmcs_msgs::DartServoCommand> trigger_command_;

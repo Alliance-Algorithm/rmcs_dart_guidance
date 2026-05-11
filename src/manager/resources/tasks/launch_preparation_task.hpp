@@ -71,7 +71,7 @@ public:
                 input.belt_right_velocity,                     // 右电机速度反馈
                 input.belt_right_torque,                       // 右电机力矩反馈
                 rmcs_msgs::DartMechanismCommand::DOWN,         // 同步带命令设置
-                settings.belt_down_setting_velocity * 0.8,     // 同步带目标速度设置
+                settings.belt_down_setting_velocity * 1.,      // 同步带目标速度设置
                 rmcs_msgs::ExitMode::WAIT_HOLD_TORQUE,         // 电机退出模式设置
                 settings.belt_down_travel_angle * 0.5,
                 10000                                          // 超时时间 ms
