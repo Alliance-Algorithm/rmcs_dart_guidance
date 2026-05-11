@@ -6,7 +6,10 @@
     - belt_up
 
 - carriage_init
-    - carriage_init
+    - carriage_calibration_prepare
+    - 3 x (carriage_init -> carriage_origin_record -> carriage_travel)
+    - carriage_origin_average_finalize
+    - carriage_calibration_park
 
 - launch_prepare
     - (fire_count == 0) belt_down(wait) -> trigger_lock -> belt_up

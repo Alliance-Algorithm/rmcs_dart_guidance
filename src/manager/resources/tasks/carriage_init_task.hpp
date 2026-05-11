@@ -3,6 +3,7 @@
 #include <functional>
 #include <memory>
 #include <numeric>
+#include <optional>
 
 #include <rclcpp/logging.hpp>
 
@@ -36,18 +37,20 @@ private:
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CarriageInitTask
-//   丝杆初始化采样任务：先低速下行直到堵转以记录一组原点，再延时后回退到安全位置。
-//   该任务会把本次测得的 origin 追加到 runtime_state 中，供后续平均收敛步骤使用。
+// CarriageCalibrationTask
+//   丝杆完整标定任务：重复三次低速下行堵转采样，并在每次采样后回退离开限位。
+//   三次样本求平均后写回新的原点，再通过角度闭环动作移动到校准停靠位。
 // ─────────────────────────────────────────────────────────────────────────────
-class CarriageInitTask : public Task {
+class CarriageCalibrationTask : public Task {
 public:
-    CarriageInitTask(
+    CarriageCalibrationTask(
         const ManagerInputContext& input, ManagerOutputContext& output,
         const ManagerSettings& settings, ManagerRuntimeState& runtime_state)
-        : Task("carriage_init", "丝杆低速堵转初始化") {
-        constexpr double kCarriageCalibrationReturnEncoderAngle = 778240.0;
-        auto carriage_origin_angle_interface = &output.carriage_origin_angle;
+        : Task("carriage_init", "丝杆完整标定流程")
+        , runtime_state_(runtime_state)
+        , carriage_origin_angle_interface_(output.carriage_origin_angle) {
+        constexpr double kCarriageCalibrationReturnEncoderAngle = 500000.0;
+        constexpr std::size_t kCalibrationPassCount = 3;
 
         auto make_calibration_action = [&input, &output, &settings]() {
             return std::make_shared<CarriageControlAction>(
@@ -86,86 +89,112 @@ public:
                 CarriageTravelAction::TravelReferenceMode::CURRENT_ANGLE);
         };
 
-        then(make_calibration_action());
-        then(std::make_shared<DelayAction>(
-            "delay",              // 动作名称
-            100                   // 延时 tick
-            ));
         then(
             std::make_shared<CallbackAction>(
-                "carriage_origin_record",                  // 动作名称
-                [&runtime_state, carriage_origin_angle_interface](CallbackAction&) {
-                    runtime_state.carriage_calibration_origin_samples.push_back(
-                        *carriage_origin_angle_interface);
+                "carriage_calibration_prepare", [this](CallbackAction&) {
+                    runtime_state_.carriage_calibration_origin_samples.clear();
                     return ActionStatus::SUCCESS;
-                }));                                       // 记录一次原点采样
-        then(std::make_shared<DelayAction>(
-            "delay",              // 动作名称
-            100                   // 延时 tick
-            ));
-        then(make_return_action());
-        then(std::make_shared<DelayAction>(
-            "delay",              // 动作名称
-            100                   // 延时 tick
-            ));
-    }
-};
+                }));
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CarriageInitFinalizeTask
-//   丝杆初始化收敛任务：对前面多次采样得到的 origin 求平均，写回运行时原点，
-//   然后通过角度闭环动作把丝杆移动到目标待机位置。若采样次数不足则返回
-//   INVALID_INPUT。
-// ─────────────────────────────────────────────────────────────────────────────
-class CarriageInitFinalizeTask : public Task {
-public:
-    CarriageInitFinalizeTask(
-        const ManagerInputContext& input, ManagerOutputContext& output,
-        const ManagerSettings& settings, ManagerRuntimeState& runtime_state)
-        : Task("carriage_init_finalize", "丝杆初始化平均值收敛") {
-        auto carriage_origin_angle_interface = &output.carriage_origin_angle;
+        for (std::size_t index = 0; index < kCalibrationPassCount; ++index) {
+            then(make_calibration_action());
 
-        auto make_return_close_loop_action = [&input, &output, &settings]() {
-            return std::make_shared<CarriageAngleCloseLoopAction>(
-                "carriage_angle_close_loop",              // 动作名称
-                output.carriage_command,                  // 丝杆命令接口
-                output.carriage_target_velocity,          // 丝杆目标速度接口
-                output.carriage_target_angle,             // 丝杆目标角度接口
-                input.carriage_angle,                     // 丝杆当前位置反馈
-                input.carriage_origin_angle,              // 丝杆原点角反馈
-                rmcs_msgs::DartMechanismCommand::UP,      // 回退方向
-                settings.carriage_up_setting_velocity,    // 闭环目标速度
-                settings.carriage_down_travel_angle,      // 相对原点目标角度
-                settings.carriage_angle_allowable_error,  // 允许角度误差
-                settings.carriage_min_run_ticks,          // 最小运行 tick
-                settings.carriage_timeout_ticks);
-        };
+            then(std::make_shared<DelayAction>("delay", 100));
+
+            then(
+                std::make_shared<CallbackAction>(
+                    "carriage_origin_record",                           // 动作名称
+                    [this](CallbackAction& action) {
+                        runtime_state_.carriage_calibration_origin_samples.push_back(
+                            carriage_origin_angle_interface_);
+                        if (const auto* logger = action.runtime_context().logger;
+                            logger != nullptr) {
+                            RCLCPP_INFO(
+                                *logger,
+                                "[CarriageCalibrationTask] sampled encoder origin[%zu]=%.6f",
+                                runtime_state_.carriage_calibration_origin_samples.size(),
+                                carriage_origin_angle_interface_);
+                        }
+                        return ActionStatus::SUCCESS;
+                    }));                                                // 记录一次原点采样
+
+            then(std::make_shared<DelayAction>("delay", 100));
+
+            then(make_return_action());
+
+            then(std::make_shared<DelayAction>("delay", 100));
+        }
 
         then(
             std::make_shared<CallbackAction>(
-                "carriage_origin_average_finalize",        // 动作名称
-                [&runtime_state, carriage_origin_angle_interface](CallbackAction& action) {
+                "carriage_origin_average_finalize",                     // 动作名称
+                [this](CallbackAction& action) {
                     constexpr std::size_t kCalibrationPassCount = 3;
-                    if (runtime_state.carriage_calibration_origin_samples.size()
+                    if (runtime_state_.carriage_calibration_origin_samples.size()
                         != kCalibrationPassCount) {
                         return action.fail_with(ActionFailureReason::INVALID_INPUT);
                     }
                     const double average_origin_angle =
                         std::accumulate(
-                            runtime_state.carriage_calibration_origin_samples.begin(),
-                            runtime_state.carriage_calibration_origin_samples.end(), 0.0)
+                            runtime_state_.carriage_calibration_origin_samples.begin(),
+                            runtime_state_.carriage_calibration_origin_samples.end(), 0.0)
                         / static_cast<double>(kCalibrationPassCount);
-                    *carriage_origin_angle_interface = average_origin_angle;
-                    runtime_state.carriage_power_cycle_origin_angle = average_origin_angle;
-                    runtime_state.carriage_calibration_origin_samples.clear();
+                    carriage_origin_angle_interface_ = average_origin_angle;
+                    runtime_state_.carriage_power_cycle_origin_angle = average_origin_angle;
+                    runtime_state_.carriage_calibration_origin_samples.clear();
                     return ActionStatus::SUCCESS;
-                }));                                       // 汇总采样并写回平均原点
-        then(std::make_shared<DelayAction>(
-            "delay",              // 动作名称
-            100                   // 延时 tick
-            ));
-        then(make_return_close_loop_action());
+                }));                                                    // 汇总采样并写回平均原点
+
+        then(std::make_shared<DelayAction>("delay", 100));
+
+        then(
+            std::make_shared<CarriageAngleCloseLoopAction>(
+                "carriage_calibration_park",                            // 动作名称
+                output.carriage_command,                                // 丝杆命令接口
+                output.carriage_target_velocity,                        // 丝杆目标速度接口
+                output.carriage_target_angle,                           // 丝杆目标角度接口
+                input.carriage_angle,                                   // 丝杆当前位置反馈
+                input.carriage_origin_angle,                            // 丝杆原点角反馈
+                rmcs_msgs::DartMechanismCommand::UP,                    // 回退方向
+                settings.carriage_up_setting_velocity,                  // 闭环目标速度
+                settings.carriage_calibration_parking_angle,            // 相对原点停靠角度
+                settings.carriage_angle_allowable_error,                // 允许角度误差
+                settings.carriage_min_run_ticks,                        // 最小运行 tick
+                settings.carriage_timeout_ticks));
     }
+
+    void on_enter() override {
+        previous_origin_angle_ = runtime_state_.carriage_power_cycle_origin_angle;
+        if (!previous_origin_angle_.has_value()) {
+            previous_origin_angle_ = carriage_origin_angle_interface_;
+        }
+        Task::on_enter();
+    }
+
+    void on_exit() override {
+        restore_previous_origin_if_needed(failure_info().reason != ActionFailureReason::NONE);
+        runtime_state_.carriage_calibration_origin_samples.clear();
+        Task::on_exit();
+    }
+
+    void on_cancel(ActionCancelReason reason) override {
+        (void)reason;
+        restore_previous_origin_if_needed(true);
+        runtime_state_.carriage_calibration_origin_samples.clear();
+        Task::on_cancel(reason);
+    }
+
+private:
+    void restore_previous_origin_if_needed(const bool should_restore) {
+        if (should_restore && previous_origin_angle_.has_value()) {
+            carriage_origin_angle_interface_ = *previous_origin_angle_;
+            runtime_state_.carriage_power_cycle_origin_angle = *previous_origin_angle_;
+        }
+    }
+
+    ManagerRuntimeState& runtime_state_;
+    double& carriage_origin_angle_interface_;
+    std::optional<double> previous_origin_angle_;
 };
 
 } // namespace rmcs_dart_guidance::manager

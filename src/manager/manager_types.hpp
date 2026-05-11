@@ -141,6 +141,7 @@ struct ManagerSettings {
     double carriage_calibration_stall_torque_threshold;
     uint64_t carriage_calibration_stall_confirm_ticks;
     double carriage_calibration_max_torque;
+    double carriage_calibration_parking_angle;
     double carriage_angle_allowable_error;
     uint64_t carriage_min_run_ticks;
     uint64_t carriage_timeout_ticks;
@@ -151,8 +152,6 @@ struct ManagerSettings {
     uint64_t limiting_fill_ticks;
 
     // yaw pitch force
-    int32_t force_setpoint;
-    int32_t force_allowable_error;
     double manual_angle_max_error;
     int32_t manual_force_max_error;
 };

@@ -22,13 +22,7 @@ std::shared_ptr<Task> make_belt_init_task(
 std::shared_ptr<Task> make_carriage_calibration_task(
     const ManagerInputContext& input, ManagerOutputContext& output,
     const ManagerSettings& settings, ManagerRuntimeState& runtime_state) {
-    return std::make_shared<CarriageInitTask>(input, output, settings, runtime_state);
-}
-
-std::shared_ptr<Task> make_carriage_calibration_finalize_task(
-    const ManagerInputContext& input, ManagerOutputContext& output,
-    const ManagerSettings& settings, ManagerRuntimeState& runtime_state) {
-    return std::make_shared<CarriageInitFinalizeTask>(input, output, settings, runtime_state);
+    return std::make_shared<CarriageCalibrationTask>(input, output, settings, runtime_state);
 }
 
 std::shared_ptr<Task> make_carriage_travel_task(

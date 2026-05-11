@@ -120,6 +120,8 @@ public:
             get_parameter("carriage_calibration_stall_confirm_ticks").as_int());
         carriage_calibration_max_torque_ =
             get_parameter("carriage_calibration_max_torque").as_double();
+        carriage_calibration_parking_angle_ =
+            get_parameter("carriage_calibration_parking_angle").as_double();
         carriage_angle_allowable_error_ =
             get_parameter("carriage_angle_allowable_error").as_double();
         carriage_min_run_ticks_ =
@@ -413,33 +415,18 @@ private:
         auto input = input_context();
         auto output = output_context();
         auto manager_settings = settings();
-        runtime_state_.carriage_calibration_origin_samples.clear();
-        runtime_state_.carriage_power_cycle_origin_angle.reset();
-
-        for (std::size_t index = 0; index < 3; ++index) {
-            auto calibration_task =
-                make_carriage_calibration_task(input, output, manager_settings, runtime_state_);
-            if (!calibration_task) {
-                RCLCPP_ERROR(
-                    logger_,
-                    "[DartManager] failed to create CarriageInitTask from ROS calibration request");
-                return;
-            }
-            submit_task(std::move(calibration_task));
-        }
-
-        auto finalize_task = make_carriage_calibration_finalize_task(
-            input, output, manager_settings, runtime_state_);
-        if (!finalize_task) {
+        auto calibration_task =
+            make_carriage_calibration_task(input, output, manager_settings, runtime_state_);
+        if (!calibration_task) {
             RCLCPP_ERROR(
-                logger_, "[DartManager] failed to create CarriageInitFinalizeTask from ROS "
+                logger_, "[DartManager] failed to create CarriageCalibrationTask from ROS "
                          "calibration request");
             return;
         }
 
-        submit_task(std::move(finalize_task));
+        submit_task(std::move(calibration_task));
         RCLCPP_INFO(
-            logger_, "[DartManager] queued 3 CarriageInitTask + CarriageInitFinalizeTask from "
+            logger_, "[DartManager] queued CarriageCalibrationTask from "
                      "/carriage_position/calibrate");
     }
 
@@ -554,18 +541,7 @@ private:
     }
 
     void log_carriage_calibration_encoder(const std::string& task_name) {
-        if (task_name == "carriage_init") {
-            const auto& samples = runtime_state_.carriage_calibration_origin_samples;
-            if (!samples.empty()) {
-                RCLCPP_INFO(
-                    logger_, "[DartManager] carriage_init calibrated encoder sample[%zu]=%.6f",
-                    samples.size(), samples.back());
-            }
-            return;
-        }
-
-        if (task_name == "carriage_init_finalize"
-            && runtime_state_.carriage_power_cycle_origin_angle.has_value()) {
+        if (task_name == "carriage_init" && runtime_state_.carriage_power_cycle_origin_angle.has_value()) {
             RCLCPP_INFO(
                 logger_, "[DartManager] carriage_init finalized encoder origin=%.6f",
                 *runtime_state_.carriage_power_cycle_origin_angle);
@@ -762,12 +738,11 @@ private:
             carriage_calibration_stall_torque_threshold_,
             carriage_calibration_stall_confirm_ticks_,
             carriage_calibration_max_torque_,
+            carriage_calibration_parking_angle_,
             carriage_angle_allowable_error_,
             carriage_min_run_ticks_,
             carriage_timeout_ticks_,
             limiting_fill_ticks_,           //
-            force_setpoint_,                //
-            force_allowable_error_,         //
             manual_angle_max_error_,        //
             manual_force_max_error_,        //
         };
@@ -841,6 +816,7 @@ private:
     double carriage_calibration_stall_torque_threshold_;
     uint64_t carriage_calibration_stall_confirm_ticks_;
     double carriage_calibration_max_torque_;
+    double carriage_calibration_parking_angle_;
     double carriage_angle_allowable_error_;
     uint64_t carriage_min_run_ticks_;
     uint64_t carriage_timeout_ticks_;
@@ -864,9 +840,6 @@ private:
     InputInterface<cv::Point2i> current_target_input_;
     InputInterface<bool> tracking_input_;
     InputInterface<uint64_t> target_seq_input_;
-
-    int32_t force_setpoint_;
-    int32_t force_allowable_error_;
 
     // manual control
     InputInterface<rmcs_msgs::Switch> remote_left_switch_;
