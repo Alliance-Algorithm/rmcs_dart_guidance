@@ -206,22 +206,6 @@ public:
             "/dart/manager/debug/last_error", debug_last_error_output_,
             std::optional<ManagerLastErrorInfo>{});
 
-        carriage_position_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
-            "/carriage_position/calibrate", rclcpp::QoS{10},
-            [this](std_msgs::msg::Int32::UniquePtr&& msg) {
-                carriage_position_calibrate_subscription_callback(std::move(msg));
-            });
-        carriage_adjust_down_subscription_ = create_subscription<std_msgs::msg::Int32>(
-            "/carriage_position/adjust_down", rclcpp::QoS{10},
-            [this](std_msgs::msg::Int32::UniquePtr&& msg) {
-                carriage_adjust_down_subscription_callback(std::move(msg));
-            });
-        carriage_adjust_up_subscription_ = create_subscription<std_msgs::msg::Int32>(
-            "/carriage_position/adjust_up", rclcpp::QoS{10},
-            [this](std_msgs::msg::Int32::UniquePtr&& msg) {
-                carriage_adjust_up_subscription_callback(std::move(msg));
-            });
-
         reset_fire_count();
         sync_debug_outputs();
         RCLCPP_INFO(logger_, "[DartManager] initialized");
@@ -405,70 +389,6 @@ private:
         auto manager_settings = settings();
         submit_task(make_belt_init_task(input, output, manager_settings));
         RCLCPP_INFO(logger_, "[DartManager] queued BeltInitTask for recovery");
-    }
-
-    void carriage_position_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr msg) {
-        if (msg == nullptr || msg->data == 0) {
-            return;
-        }
-
-        auto input = input_context();
-        auto output = output_context();
-        auto manager_settings = settings();
-        auto calibration_task =
-            make_carriage_calibration_task(input, output, manager_settings, runtime_state_);
-        if (!calibration_task) {
-            RCLCPP_ERROR(
-                logger_, "[DartManager] failed to create CarriageCalibrationTask from ROS "
-                         "calibration request");
-            return;
-        }
-
-        submit_task(std::move(calibration_task));
-        RCLCPP_INFO(
-            logger_, "[DartManager] queued CarriageCalibrationTask from "
-                     "/carriage_position/calibrate");
-    }
-
-    void carriage_adjust_down_subscription_callback(std_msgs::msg::Int32::UniquePtr msg) {
-        if (msg == nullptr || msg->data == 0) {
-            return;
-        }
-
-        auto input = input_context();
-        auto output = output_context();
-        auto manager_settings = settings();
-        auto task = make_carriage_adjust_down_task(input, output, manager_settings);
-        if (!task) {
-            RCLCPP_ERROR(
-                logger_, "[DartManager] failed to create CarriageAdjustDownTask from ROS request");
-            return;
-        }
-
-        submit_task(std::move(task));
-        RCLCPP_INFO(
-            logger_,
-            "[DartManager] queued CarriageAdjustDownTask from /carriage_position/adjust_down");
-    }
-
-    void carriage_adjust_up_subscription_callback(std_msgs::msg::Int32::UniquePtr msg) {
-        if (msg == nullptr || msg->data == 0) {
-            return;
-        }
-
-        auto input = input_context();
-        auto output = output_context();
-        auto manager_settings = settings();
-        auto task = make_carriage_adjust_up_task(input, output, manager_settings);
-        if (!task) {
-            RCLCPP_ERROR(
-                logger_, "[DartManager] failed to create CarriageAdjustUpTask from ROS request");
-            return;
-        }
-
-        submit_task(std::move(task));
-        RCLCPP_INFO(
-            logger_, "[DartManager] queued CarriageAdjustUpTask from /carriage_position/adjust_up");
     }
 
     void submit_task(std::shared_ptr<Task> task) {

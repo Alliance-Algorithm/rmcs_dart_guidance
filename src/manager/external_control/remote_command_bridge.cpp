@@ -5,11 +5,12 @@
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/switch.hpp>
+#include <std_msgs/msg/int32.hpp>
 
 namespace rmcs_dart_guidance::manager {
 
 // RemoteCommandBridge
-//   将遥控器 DR16 的拨杆信号翻译为 DartManager 可识别的离散命令。
+//   将遥控器 DR16 和外部 ROS topic 输入翻译为 DartManager 可识别的离散命令。
 
 /* 键位映射：
     双下：全部停止 -> "cancel"
@@ -18,6 +19,9 @@ namespace rmcs_dart_guidance::manager {
         右拨杆 MIDDLE->DOWN：切换上膛/退膛 -> "launch_prepare" / "launch_cancel"
         右拨杆 MIDDLE->UP：处于上膛状态时发射 -> "fire_preload"
     左拨杆进入 UP：发一次手动控制 -> "manual_control"
+
+    外部 ROS：
+        /carriage_position/calibrate 非 0：发一次 "carriage_init"
 */
 
 class RemoteCommandBridge
@@ -33,6 +37,12 @@ public:
         register_input("/remote/switch/right", switch_right_, false);
 
         register_output("/dart/manager/command", command_output_, std::string{});
+
+        carriage_position_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
+            "/carriage_position/calibrate", rclcpp::QoS{10},
+            [this](std_msgs::msg::Int32::UniquePtr&& msg) {
+                carriage_position_calibrate_subscription_callback(std::move(msg));
+            });
 
         vision_enable_ = get_parameter("vision_enable").as_bool();
         RCLCPP_INFO(logger_, "[RemoteCommandBridge] initialized");
@@ -112,6 +122,17 @@ public:
 private:
     void emit_command(const std::string& cmd) { *command_output_ = cmd; }
 
+    void carriage_position_calibrate_subscription_callback(std_msgs::msg::Int32::UniquePtr msg) {
+        if (msg == nullptr || msg->data == 0) {
+            return;
+        }
+
+        emit_command("carriage_init");
+        RCLCPP_INFO(
+            logger_,
+            "[RemoteCommandBridge] /carriage_position/calibrate -> carriage_init");
+    }
+
     bool detect_enter_manual_control(rmcs_msgs::Switch current_left) const {
         return current_left == rmcs_msgs::Switch::UP && prev_left_ != rmcs_msgs::Switch::UP;
     }
@@ -142,6 +163,7 @@ private:
     InputInterface<rmcs_msgs::Switch> switch_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
     OutputInterface<std::string> command_output_;
+    rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr carriage_position_calibrate_subscription_;
 
     bool vision_enable_;
 

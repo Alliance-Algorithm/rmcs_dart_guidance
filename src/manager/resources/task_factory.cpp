@@ -31,22 +31,6 @@ std::shared_ptr<Task> make_carriage_travel_task(
     return std::make_shared<CarriageTravelTask>(input, output, settings);
 }
 
-std::shared_ptr<Task> make_carriage_adjust_down_task(
-    const ManagerInputContext& input, ManagerOutputContext& output,
-    const ManagerSettings& settings) {
-    return std::make_shared<CarriageTravelTask>(
-        "carriage_adjust_down", "滑台下调", input, output, rmcs_msgs::DartMechanismCommand::DOWN,
-        settings.carriage_down_setting_velocity, settings.carriage_adjust_down_angle, settings);
-}
-
-std::shared_ptr<Task> make_carriage_adjust_up_task(
-    const ManagerInputContext& input, ManagerOutputContext& output,
-    const ManagerSettings& settings) {
-    return std::make_shared<CarriageTravelTask>(
-        "carriage_adjust_up", "滑台上调", input, output, rmcs_msgs::DartMechanismCommand::UP,
-        settings.carriage_up_setting_velocity, settings.carriage_adjust_up_angle, settings);
-}
-
 std::shared_ptr<Task> make_task(
     const std::string& cmd, const ManagerInputContext& input, ManagerOutputContext& output,
     const ManagerSettings& settings, const VisionAimProfileProvider& profile_provider,

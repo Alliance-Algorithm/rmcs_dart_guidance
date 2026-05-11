@@ -54,7 +54,7 @@ src/manager/
 - **错误 (`ERROR`)**：暂停调度，等待外部发送 `recover` 命令。
 
 ### 3. 命令处理
-当前阶段 `DartManager` 只接收遥控器命令，命令由 `RemoteCommandBridge` 直接写入 `/dart/manager/command`。
+当前阶段 `DartManager` 只接收离散命令，命令由 `RemoteCommandBridge` 统一写入 `/dart/manager/command`。
 
 遥控器映射如下：
 - 双下：`cancel`
@@ -75,7 +75,8 @@ src/manager/
 - 对 3 次样本求平均，写回新的参考零点
 - 按 `UP` 方向运行到 `carriage_calibration_parking_angle` 定义的校准停靠位
 
-ROS 话题 `/carriage_position/calibrate` 收到非 0 时，也会触发同一个完整标定 task。
+ROS 话题 `/carriage_position/calibrate` 收到非 0 时，会先由 `RemoteCommandBridge` 转发为
+`carriage_init` 命令，再进入同一个完整标定 task。
 
 ### 4. 任务调度 (`Task` & `Action`)
 开发者可以通过派生 `Action` 或组装现有的 Action 创建 `Task`。组件层会先组装 `ManagerInputContext`、`ManagerOutputContext`、`ManagerSettings` 和 `ManagerRuntimeState`，再由 `task_factory` 统一创建具体任务，避免 `DartManager` 直接依赖所有自定义资源实现。

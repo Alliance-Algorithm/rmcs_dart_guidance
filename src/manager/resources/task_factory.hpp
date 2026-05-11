@@ -21,14 +21,6 @@ std::shared_ptr<Task> make_carriage_travel_task(
     const ManagerInputContext& input, ManagerOutputContext& output,
     const ManagerSettings& settings);
 
-std::shared_ptr<Task> make_carriage_adjust_down_task(
-    const ManagerInputContext& input, ManagerOutputContext& output,
-    const ManagerSettings& settings);
-
-std::shared_ptr<Task> make_carriage_adjust_up_task(
-    const ManagerInputContext& input, ManagerOutputContext& output,
-    const ManagerSettings& settings);
-
 std::shared_ptr<Task> make_task(
     const std::string& cmd, const ManagerInputContext& input, ManagerOutputContext& output,
     const ManagerSettings& settings, const VisionAimProfileProvider& profile_provider,
