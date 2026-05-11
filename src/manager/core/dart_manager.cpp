@@ -165,6 +165,7 @@ public:
         register_input("/dart_guidance/camera/target_position", current_target_input_, false);
         register_input("/dart_guidance/tracker/tracking", tracking_input_, false);
         register_input("/dart_guidance/camera/target_seq", target_seq_input_, false);
+        register_input("/imu/catapult_pitch_angle", pitch_angle_);
 
         // manual control
         register_input("/remote/switch/left", remote_left_switch_, false);
@@ -596,6 +597,7 @@ private:
             *current_target_input_,         //
             *tracking_input_,               //
             *target_seq_input_,             //
+            *pitch_angle_,                  //
             *remote_left_switch_,           //
             *remote_right_switch_,          //
             *remote_rotary_knob_switch_,    //
@@ -760,6 +762,7 @@ private:
     InputInterface<cv::Point2i> current_target_input_;
     InputInterface<bool> tracking_input_;
     InputInterface<uint64_t> target_seq_input_;
+    InputInterface<double> pitch_angle_;
 
     // manual control
     InputInterface<rmcs_msgs::Switch> remote_left_switch_;

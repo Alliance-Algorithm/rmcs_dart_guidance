@@ -65,6 +65,7 @@ struct ManagerInputContext {
     const cv::Point2i& current_target;
     const bool& tracking;
     const uint64_t& target_seq;
+    const double& pitch_angle;
 
     // remote control
     const rmcs_msgs::Switch& remote_left_switch;

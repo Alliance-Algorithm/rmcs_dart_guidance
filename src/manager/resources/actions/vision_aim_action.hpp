@@ -25,12 +25,13 @@ class VisionAimAction : public IAction {
 public:
     VisionAimAction(
         std::string name, const cv::Point2i& current_target, const bool& tracking,
-        const uint64_t& target_seq, Eigen::Vector2d& angle_error_vector,
+        const uint64_t& target_seq, const double& pitch_angle, Eigen::Vector2d& angle_error_vector,
         const VisionAimProfileProvider& profile_provider, uint32_t fire_count)
         : IAction(std::move(name))
         , current_target_(current_target)
         , tracking_(tracking)
         , target_seq_(target_seq)
+        , pitch_angle_(pitch_angle)
         , angle_error_vector_(angle_error_vector)
         , profile_provider_(profile_provider)
         , fire_count_(fire_count) {}
@@ -67,13 +68,13 @@ public:
 
         const cv::Point2i desired_point =
             active_profile_->reference_point + active_profile_->offset;
-        const cv::Point2i error = desired_point - current_target_;
+        const cv::Point2i yaw_error = desired_point - current_target_;
+        const double pitch_error = active_profile_->pitch_angle - pitch_angle_;
 
-        angle_error_vector_ =
-            Eigen::Vector2d(static_cast<double>(error.x), static_cast<double>(error.y));
+        angle_error_vector_ = Eigen::Vector2d(static_cast<double>(yaw_error.x), pitch_error);
 
-        if (observed_target_refresh_ && std::abs(error.x) <= active_profile_->allowable_error.x
-            && std::abs(error.y) <= active_profile_->allowable_error.y) {
+        if (observed_target_refresh_ && std::abs(yaw_error.x) <= active_profile_->allowable_error.x
+            && std::abs(pitch_error) <= active_profile_->allowable_error.y) {
             return ActionStatus::SUCCESS;
         }
 
@@ -102,6 +103,7 @@ private:
     const cv::Point2i& current_target_;
     const bool& tracking_;
     const uint64_t& target_seq_;
+    const double& pitch_angle_;
     Eigen::Vector2d& angle_error_vector_;
     const VisionAimProfileProvider& profile_provider_;
     uint32_t fire_count_;

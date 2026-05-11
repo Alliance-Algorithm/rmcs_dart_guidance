@@ -78,6 +78,11 @@ src/manager/
 ROS 话题 `/carriage_position/calibrate` 收到非 0 时，会先由 `RemoteCommandBridge` 转发为
 `carriage_init` 命令，再进入同一个完整标定 task。
 
+`launch_prepare_with_vision` 当前的瞄准语义为：
+- yaw：继续使用视觉识别目标的像素 x 误差
+- pitch：使用 `vision_aim.shot_profiles.N.pitch_angle` 与 `/imu/catapult_pitch_angle` 的角度误差
+- carriage：仍由 `trigger_carriage_position_aim` 独立控制，不参与上述修改
+
 ### 4. 任务调度 (`Task` & `Action`)
 开发者可以通过派生 `Action` 或组装现有的 Action 创建 `Task`。组件层会先组装 `ManagerInputContext`、`ManagerOutputContext`、`ManagerSettings` 和 `ManagerRuntimeState`，再由 `task_factory` 统一创建具体任务，避免 `DartManager` 直接依赖所有自定义资源实现。
 
