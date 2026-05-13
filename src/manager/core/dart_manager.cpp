@@ -105,7 +105,8 @@ public:
         carriage_down_velocity_ = get_parameter("carriage_down_velocity").as_double();
         carriage_up_velocity_ = get_parameter("carriage_up_velocity").as_double();
         carriage_lift_down_limit_ = get_parameter("carriage_lift_down_limit").as_double();
-        carriage_startup_origin_angle_ = get_parameter("carriage_startup_origin_angle").as_double();
+        carriage_startup_position_angle_ =
+            get_parameter("carriage_startup_position_angle").as_double();
         carriage_adjust_down_angle_ = get_parameter("carriage_adjust_down_angle").as_double();
         carriage_adjust_up_angle_ = get_parameter("carriage_adjust_up_angle").as_double();
         carriage_stall_velocity_threshold_ =
@@ -140,8 +141,7 @@ public:
             RCLCPP_WARN(logger_, "Invalid fire_target '%s'", fire_target_.c_str());
             carriage_travel_angle_ = 0.0;
         }
-        *carriage_origin_angle_ = carriage_startup_origin_angle_;
-        runtime_state_.carriage_power_cycle_origin_angle = carriage_startup_origin_angle_;
+        *carriage_origin_angle_ = 0.0;
 
         // trigger
         register_output("/dart_manager/trigger/command", trigger_command_);
@@ -230,6 +230,11 @@ public:
     }
 
     void update() override {
+        initialize_carriage_origin_from_startup_position();
+        if (!carriage_startup_position_initialized_) {
+            sync_debug_outputs();
+            return;
+        }
         poll_commands();
 
         if (runtime_state_.lifecycle_state == ManagerLifecycleState::ERROR) {
@@ -338,6 +343,29 @@ private:
         if (!cmd.empty()) {
             process_command(cmd);
         }
+    }
+
+    void initialize_carriage_origin_from_startup_position() {
+        if (carriage_startup_position_initialized_) {
+            return;
+        }
+        if (!force_screw_encoder_angle_.ready()) {
+            return;
+        }
+
+        const double current_encoder_angle = *force_screw_encoder_angle_;
+        const double computed_origin_angle =
+            current_encoder_angle - carriage_startup_position_angle_;
+
+        *carriage_origin_angle_ = computed_origin_angle;
+        runtime_state_.carriage_power_cycle_origin_angle = computed_origin_angle;
+        carriage_startup_position_initialized_ = true;
+
+        RCLCPP_INFO(
+            logger_,
+            "[DartManager] initialized carriage origin from startup position:"
+            " encoder=%.6f startup_position=%.6f origin=%.6f",
+            current_encoder_angle, carriage_startup_position_angle_, computed_origin_angle);
     }
 
     void process_command(const std::string& cmd) {
@@ -733,7 +761,8 @@ private:
     double carriage_down_velocity_;
     double carriage_up_velocity_;
     double carriage_lift_down_limit_;
-    double carriage_startup_origin_angle_;
+    double carriage_startup_position_angle_;
+    bool carriage_startup_position_initialized_{false};
     double carriage_travel_angle_;
     double carriage_adjust_down_angle_;
     double carriage_adjust_up_angle_;

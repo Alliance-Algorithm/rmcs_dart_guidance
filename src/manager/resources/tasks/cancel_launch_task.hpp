@@ -3,6 +3,7 @@
 #include "manager/core/runtime/task.hpp"
 #include "manager/manager_types.hpp"
 #include "manager/resources/actions/belt_control_action.hpp"
+#include "manager/resources/actions/filling_lift_action.hpp"
 #include "manager/resources/actions/trigger_control_action.hpp"
 #include <memory>
 
@@ -122,6 +123,24 @@ public:
                 settings.belt_stall_torque_threshold * 0.5, // 堵转力矩阈值
                 settings.belt_stall_confirm_ticks,          // 堵转确认帧数
                 20000                                       // 超时时间 ms
+                ));
+        then(
+            std::make_shared<FillingLiftAction>(
+                "filling_lift_up",                          // 动作名称
+                output.lifting_command,                     // 升降命令接口
+                output.lift_target_velocity,                // 升降目标速度接口
+                output.lift_exit_mode,                      // 升降退出模式接口
+                input.lift_left_velocity,                   // 左侧升降速度反馈
+                input.lift_left_torque,                     // 左侧升降力矩反馈
+                input.lift_right_velocity,                  // 右侧升降速度反馈
+                input.lift_right_torque,                    // 右侧升降力矩反馈
+                rmcs_msgs::DartMechanismCommand::UP,        // 升降方向
+                settings.lift_target_velocity,              // 升降目标速度
+                rmcs_msgs::ExitMode::WAIT_ZERO_VELOCITY,    // 退出模式
+                settings.lift_stall_velocity_threshold,     // 堵转速度阈值
+                settings.lift_stall_torque_threshold,       // 堵转力矩阈值
+                settings.lift_stall_confirm_ticks,          // 堵转确认帧数
+                20000                                       // 超时 tick
                 ));
     }
 };

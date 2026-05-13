@@ -73,8 +73,9 @@ public:
 
         angle_error_vector_ = Eigen::Vector2d(static_cast<double>(yaw_error.x), pitch_error);
 
-        if (observed_target_refresh_ && std::abs(yaw_error.x) <= active_profile_->allowable_error.x
-            && std::abs(pitch_error) <= active_profile_->allowable_error.y) {
+        if (observed_target_refresh_
+            && std::abs(yaw_error.x) <= active_profile_->allowable_error.yaw_pixels
+            && std::abs(pitch_error) <= active_profile_->allowable_error.pitch_angle) {
             return ActionStatus::SUCCESS;
         }
 

@@ -19,8 +19,13 @@ struct VisionAimShotProfile {
     int trigger_carriage_position{0};
 };
 
+struct VisionAimAllowableError {
+    int yaw_pixels{0};
+    double pitch_angle{0.0};
+};
+
 struct VisionAimRuntimeProfile {
-    cv::Point2i allowable_error;
+    VisionAimAllowableError allowable_error;
     uint64_t timeout_ticks{0};
     cv::Point2i reference_point;
     cv::Point2i offset;
@@ -38,11 +43,10 @@ public:
         valid_ = false;
         error_message_.clear();
         shot_profiles_.clear();
-        allowable_error_ = cv::Point2i();
+        allowable_error_ = VisionAimAllowableError{};
         timeout_ticks_ = 0;
 
-        const auto allowable_error =
-            read_point(node, "vision_aim.allowable_error", true, true, "allowable_error");
+        const auto allowable_error = read_allowable_error(node);
         if (!allowable_error) {
             return;
         }
@@ -157,6 +161,41 @@ private:
         };
     }
 
+    std::optional<VisionAimAllowableError> read_allowable_error(rclcpp::Node& node) {
+        const std::string base_name = "vision_aim.allowable_error";
+        const std::string x_name = base_name + ".x";
+        const std::string y_name = base_name + ".y";
+        const bool has_x = node.has_parameter(x_name);
+        const bool has_y = node.has_parameter(y_name);
+
+        if (!has_x && !has_y) {
+            set_error("missing allowable_error configuration");
+            return std::nullopt;
+        }
+
+        if (!has_x || !has_y) {
+            set_error("incomplete allowable_error configuration");
+            return std::nullopt;
+        }
+
+        const auto yaw_pixels = read_int(node, x_name, "allowable_error.x");
+        if (!yaw_pixels.has_value()) {
+            return std::nullopt;
+        }
+
+        const auto pitch_angle = read_number(node, y_name, "allowable_error.y");
+        if (!pitch_angle.has_value()) {
+            return std::nullopt;
+        }
+
+        if (*yaw_pixels < 0 || *pitch_angle < 0.0) {
+            set_error("allowable_error must be non-negative");
+            return std::nullopt;
+        }
+
+        return VisionAimAllowableError{*yaw_pixels, *pitch_angle};
+    }
+
     std::optional<cv::Point2i> read_point(
         rclcpp::Node& node, const std::string& base_name, bool required, bool require_non_negative,
         const std::string& label) {
@@ -212,12 +251,31 @@ private:
     }
 
     std::optional<double> read_double(
-        rclcpp::Node& node, const std::string& parameter_name, const std::string& label) {
+        rclcpp::Node& node, const std::string& parameter_name, const std::string&) {
         if (!node.has_parameter(parameter_name)) {
             return std::nullopt;
         }
 
         return node.get_parameter(parameter_name).as_double();
+    }
+
+    std::optional<double> read_number(
+        rclcpp::Node& node, const std::string& parameter_name, const std::string& label) {
+        if (!node.has_parameter(parameter_name)) {
+            return std::nullopt;
+        }
+
+        const auto parameter = node.get_parameter(parameter_name);
+        if (parameter.get_type() == rclcpp::ParameterType::PARAMETER_DOUBLE) {
+            return parameter.as_double();
+        }
+
+        if (parameter.get_type() == rclcpp::ParameterType::PARAMETER_INTEGER) {
+            return static_cast<double>(parameter.as_int());
+        }
+
+        set_error(label + " must be numeric");
+        return std::nullopt;
     }
 
     std::optional<uint64_t> read_uint64(
@@ -244,7 +302,7 @@ private:
 
     bool valid_{false};
     std::string error_message_;
-    cv::Point2i allowable_error_{};
+    VisionAimAllowableError allowable_error_{};
     uint64_t timeout_ticks_{0};
     std::vector<VisionAimShotProfile> shot_profiles_;
 };
