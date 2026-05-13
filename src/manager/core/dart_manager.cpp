@@ -53,6 +53,8 @@ public:
         belt_down_travel_angle_ = get_parameter("belt_down_travel_angle").as_double();
         belt_up_velocity_ = get_parameter("belt_up_velocity").as_double();
         belt_up_travel_angle_ = get_parameter("belt_up_travel_angle").as_double();
+        belt_interference_relief_travel_angle_ =
+            get_parameter("belt_interference_relief_travel_angle").as_double();
         belt_init_velocity_ = get_parameter("belt_init_velocity").as_double();
         manual_belt_velocity_ = get_parameter("manual_max_velocity").as_double();
         belt_stall_velocity_threshold_ = get_parameter("belt_stall_velocity_threshold").as_double();
@@ -102,6 +104,7 @@ public:
         frontier_travel_angle_ = get_parameter("frontier_travel_angle").as_double();
         carriage_down_velocity_ = get_parameter("carriage_down_velocity").as_double();
         carriage_up_velocity_ = get_parameter("carriage_up_velocity").as_double();
+        carriage_lift_down_limit_ = get_parameter("carriage_lift_down_limit").as_double();
         carriage_startup_origin_angle_ = get_parameter("carriage_startup_origin_angle").as_double();
         carriage_adjust_down_angle_ = get_parameter("carriage_adjust_down_angle").as_double();
         carriage_adjust_up_angle_ = get_parameter("carriage_adjust_up_angle").as_double();
@@ -634,6 +637,7 @@ private:
             belt_down_travel_angle_,        //
             belt_up_velocity_,              //
             belt_up_travel_angle_,          //
+            belt_interference_relief_travel_angle_,
             belt_init_velocity_,            //
             belt_stall_velocity_threshold_, //
             belt_stall_torque_threshold_,   //
@@ -650,6 +654,7 @@ private:
             carriage_down_velocity_,
             carriage_travel_angle_,
             carriage_up_velocity_,
+            carriage_lift_down_limit_,
             carriage_adjust_down_angle_,
             carriage_adjust_up_angle_,
             carriage_stall_velocity_threshold_,
@@ -688,6 +693,7 @@ private:
     double belt_down_travel_angle_;
     double belt_up_velocity_;
     double belt_up_travel_angle_;
+    double belt_interference_relief_travel_angle_;
     double belt_init_velocity_;
     double belt_stall_velocity_threshold_;
     double belt_stall_torque_threshold_;
@@ -726,6 +732,7 @@ private:
     double frontier_travel_angle_;
     double carriage_down_velocity_;
     double carriage_up_velocity_;
+    double carriage_lift_down_limit_;
     double carriage_startup_origin_angle_;
     double carriage_travel_angle_;
     double carriage_adjust_down_angle_;

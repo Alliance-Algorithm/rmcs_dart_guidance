@@ -62,7 +62,7 @@ public:
                 input.carriage_angle,                                   // 丝杆当前位置反馈
                 input.carriage_velocity,                                // 丝杆速度反馈
                 input.carriage_torque,                                  // 丝杆力矩反馈
-                rmcs_msgs::DartMechanismCommand::DOWN,                  // 初始化方向
+                rmcs_msgs::DartMechanismCommand::UP,                    // 初始化方向
                 settings.carriage_calibration_velocity,                 // 初始化目标速度
                 settings.carriage_calibration_max_torque,               // 初始化力矩上限
                 settings.carriage_calibration_stall_velocity_threshold, // 堵转速度阈值
@@ -80,7 +80,7 @@ public:
                 input.carriage_origin_angle,                            // 丝杆原点角反馈
                 input.carriage_velocity,                                // 丝杆速度反馈
                 input.carriage_torque,                                  // 丝杆力矩反馈
-                rmcs_msgs::DartMechanismCommand::UP,                    // 回退方向
+                rmcs_msgs::DartMechanismCommand::DOWN,                  // 回退方向
                 settings.carriage_up_setting_velocity,                  // 回退目标速度
                 kCarriageCalibrationReturnEncoderAngle,                 // 回退目标位移
                 settings.carriage_stall_velocity_threshold,             // 堵转速度阈值
@@ -155,7 +155,7 @@ public:
                 output.carriage_target_angle,                           // 丝杆目标角度接口
                 input.carriage_angle,                                   // 丝杆当前位置反馈
                 input.carriage_origin_angle,                            // 丝杆原点角反馈
-                rmcs_msgs::DartMechanismCommand::UP,                    // 回退方向
+                rmcs_msgs::DartMechanismCommand::DOWN,                  // 回退方向
                 settings.carriage_up_setting_velocity,                  // 闭环目标速度
                 settings.carriage_calibration_parking_angle,            // 相对原点停靠角度
                 settings.carriage_angle_allowable_error,                // 允许角度误差

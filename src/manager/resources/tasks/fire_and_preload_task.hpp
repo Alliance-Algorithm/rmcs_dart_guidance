@@ -23,10 +23,12 @@ public:
         const ManagerInputContext& input, ManagerOutputContext& output,
         const ManagerSettings& settings, const ManagerRuntimeState& runtime_state)
         : Task("fire_preload", "发射并预装填") {
-        then(std::make_shared<DelayAction>(
-            "fire_delay",     // 动作名称
-            1000              // 发射前延时 tick
-            ));
+        then(
+            std::make_shared<DelayAction>(
+                "fire_delay",                                // 动作名称
+                1000                                         // 发射前延时 tick
+                ));
+
         then(
             std::make_shared<TriggerControlAction>(
                 "trigger_free",                              // 动作名称
