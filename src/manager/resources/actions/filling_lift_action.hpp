@@ -12,6 +12,12 @@
 
 namespace rmcs_dart_guidance::manager {
 
+// ─────────────────────────────────────────────────────────────────────────────
+// FillingLiftAction
+//   填装升降机构开环控制动作：进入时写入升降方向与目标速度。
+//   运行中通过“低速且高扭矩”连续出现来判定机构已顶到限位，满足确认次数后返回
+//   SUCCESS；超时则返回 TIMEOUT。退出时根据 exit_mode 决定保持输出还是切回 WAIT。
+// ─────────────────────────────────────────────────────────────────────────────
 class FillingLiftAction : public IAction {
 public:
     FillingLiftAction(

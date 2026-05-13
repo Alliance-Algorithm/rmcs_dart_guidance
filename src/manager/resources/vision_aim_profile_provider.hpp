@@ -15,6 +15,8 @@ namespace rmcs_dart_guidance::manager {
 struct VisionAimShotProfile {
     cv::Point2i reference_point;
     cv::Point2i offset;
+    double pitch_angle{0.0};
+    int trigger_carriage_position{0};
 };
 
 struct VisionAimRuntimeProfile {
@@ -22,6 +24,8 @@ struct VisionAimRuntimeProfile {
     uint64_t timeout_ticks{0};
     cv::Point2i reference_point;
     cv::Point2i offset;
+    double pitch_angle{0.0};
+    int trigger_carriage_position{0};
 };
 
 class VisionAimProfileProvider {
@@ -93,6 +97,8 @@ public:
             timeout_ticks_,
             shot_profile.reference_point,
             shot_profile.offset,
+            shot_profile.pitch_angle,
+            shot_profile.trigger_carriage_position,
         };
     }
 
@@ -116,16 +122,39 @@ private:
             }
         }
 
-        if (!reference_point.has_value() && !offset.has_value()) {
+        const auto pitch_angle =
+            read_double(node, prefix + ".pitch_angle", prefix + ".pitch_angle");
+        if (!pitch_angle.has_value()) {
+            if (!error_message_.empty()) {
+                return std::nullopt;
+            }
+        }
+
+        const auto trigger_carriage_position = read_int(
+            node, prefix + ".trigger_carriage_position", prefix + ".trigger_carriage_position");
+        if (!trigger_carriage_position.has_value()) {
+            if (!error_message_.empty()) {
+                return std::nullopt;
+            }
+        }
+
+        if (!reference_point.has_value() && !offset.has_value() && !pitch_angle.has_value()
+            && !trigger_carriage_position.has_value()) {
             return std::nullopt;
         }
 
-        if (!reference_point.has_value() || !offset.has_value()) {
+        if (!reference_point.has_value() || !offset.has_value() || !pitch_angle.has_value()
+            || !trigger_carriage_position.has_value()) {
             set_error("incomplete configuration for " + prefix);
             return std::nullopt;
         }
 
-        return VisionAimShotProfile{*reference_point, *offset};
+        return VisionAimShotProfile{
+            *reference_point,
+            *offset,
+            *pitch_angle,
+            *trigger_carriage_position,
+        };
     }
 
     std::optional<cv::Point2i> read_point(
@@ -168,6 +197,10 @@ private:
 
     std::optional<int> read_int(
         rclcpp::Node& node, const std::string& parameter_name, const std::string& label) {
+        if (!node.has_parameter(parameter_name)) {
+            return std::nullopt;
+        }
+
         const int64_t raw_value = node.get_parameter(parameter_name).as_int();
         if (raw_value < static_cast<int64_t>(std::numeric_limits<int>::min())
             || raw_value > static_cast<int64_t>(std::numeric_limits<int>::max())) {
@@ -176,6 +209,15 @@ private:
         }
 
         return static_cast<int>(raw_value);
+    }
+
+    std::optional<double> read_double(
+        rclcpp::Node& node, const std::string& parameter_name, const std::string& label) {
+        if (!node.has_parameter(parameter_name)) {
+            return std::nullopt;
+        }
+
+        return node.get_parameter(parameter_name).as_double();
     }
 
     std::optional<uint64_t> read_uint64(

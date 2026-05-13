@@ -8,6 +8,10 @@
 
 namespace rmcs_dart_guidance::manager {
 
+// ─────────────────────────────────────────────────────────────────────────────
+// TriggerLockTask
+//   扳机锁定任务：封装一次 TriggerControlAction，将扳机切换到 LOCK 并等待舵机稳定。
+// ─────────────────────────────────────────────────────────────────────────────
 class TriggerLockTask : public Task {
 public:
     explicit TriggerLockTask(ManagerOutputContext& output)
@@ -15,13 +19,17 @@ public:
 
         then(
             std::make_shared<TriggerControlAction>(
-                "trigger_lock",
-                output.trigger_command,
-                rmcs_msgs::DartServoCommand::LOCK,
-                1000));
+                "trigger_lock",                    // 动作名称
+                output.trigger_command,            // 扳机命令接口
+                rmcs_msgs::DartServoCommand::LOCK, // 扳机锁定命令
+                1000));                            // 舵机稳定等待 tick
     }
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// TriggerFreeTask
+//   扳机释放任务：封装一次 TriggerControlAction，将扳机切换到 FREE 并等待动作完成。
+// ─────────────────────────────────────────────────────────────────────────────
 class TriggerFreeTask : public Task {
 public:
     explicit TriggerFreeTask(ManagerOutputContext& output)
@@ -29,10 +37,10 @@ public:
 
         then(
             std::make_shared<TriggerControlAction>(
-                "trigger_free",
-                output.trigger_command,
-                rmcs_msgs::DartServoCommand::FREE,
-                100));
+                "trigger_free",                    // 动作名称
+                output.trigger_command,            // 扳机命令接口
+                rmcs_msgs::DartServoCommand::FREE, // 扳机释放命令
+                100));                             // 舵机稳定等待 tick
     }
 };
 

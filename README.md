@@ -54,11 +54,10 @@ src/manager/
 - **错误 (`ERROR`)**：暂停调度，等待外部发送 `recover` 命令。
 
 ### 3. 命令处理
-当前阶段 `DartManager` 只接收遥控器命令，命令由 `RemoteCommandBridge` 直接写入 `/dart/manager/command`。
+当前阶段 `DartManager` 只接收离散命令，命令由 `RemoteCommandBridge` 统一写入 `/dart/manager/command`。
 
 遥控器映射如下：
 - 双下：`cancel`
-- 左拨杆 `UP` 且右拨杆 `DOWN`：`carriage_init`
 - 左拨杆 `DOWN -> MIDDLE`：`recover`
 - 左拨杆进入 `UP`：`manual_control`
 - 左拨杆保持 `MIDDLE` 且右拨杆 `MIDDLE -> DOWN`：`launch_prepare` / `launch_prepare_with_vision` / `launch_cancel`
@@ -70,6 +69,19 @@ src/manager/
 
 其他任务命令（如 `launch_prepare`, `fire_preload`）会在 `poll_command()` 中解析并生成对应的 `Task` 加入队列。
 当 `vision_enable=true` 时，遥控发射准备入口会发出 `launch_prepare_with_vision`；否则发出 `launch_prepare`。
+
+`carriage_init` / `carriage-init` 仍可通过 `/dart/manager/command` 触发，但语义已经是完整标定流程：
+- 连续 3 次低速逼近机械限位并记录编码器原点样本
+- 对 3 次样本求平均，写回新的参考零点
+- 按 `UP` 方向运行到 `carriage_calibration_parking_angle` 定义的校准停靠位
+
+ROS 话题 `/carriage_position/calibrate` 收到非 0 时，会先由 `RemoteCommandBridge` 转发为
+`carriage_init` 命令，再进入同一个完整标定 task。
+
+`launch_prepare_with_vision` 当前的瞄准语义为：
+- yaw：继续使用视觉识别目标的像素 x 误差
+- pitch：使用 `vision_aim.shot_profiles.N.pitch_angle` 与 `/imu/catapult_pitch_angle` 的角度误差
+- carriage：仍由 `trigger_carriage_position_aim` 独立控制，不参与上述修改
 
 ### 4. 任务调度 (`Task` & `Action`)
 开发者可以通过派生 `Action` 或组装现有的 Action 创建 `Task`。组件层会先组装 `ManagerInputContext`、`ManagerOutputContext`、`ManagerSettings` 和 `ManagerRuntimeState`，再由 `task_factory` 统一创建具体任务，避免 `DartManager` 直接依赖所有自定义资源实现。

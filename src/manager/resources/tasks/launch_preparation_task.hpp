@@ -13,6 +13,12 @@
 
 namespace rmcs_dart_guidance::manager {
 
+// ─────────────────────────────────────────────────────────────────────────────
+// LaunchPreparationTask
+//   发射准备任务：先让同步带下行完成装填空间预留，再根据 fire_count 决定是否额外执行
+//   扳机锁定与填装机构下行动作，最后通过两段上行和末端堵转检测回到发射待命位。
+//   该任务是纯顺序流程，不包含视觉或力度闭环。
+// ─────────────────────────────────────────────────────────────────────────────
 class LaunchPreparationTask : public Task {
 public:
     LaunchPreparationTask(
@@ -26,16 +32,16 @@ public:
                     output.belt_command,                       // 同步带命令接口
                     output.belt_target_velocity,               // 同步带目标速度接口
                     output.belt_exit_mode,                     // 电机退出状态接口
-                    input.belt_left_angle,
+                    input.belt_left_angle,                     // 左电机角度反馈
                     input.belt_left_velocity,                  // 左电机速度反馈
                     input.belt_left_torque,                    // 左电机力矩反馈
-                    input.belt_right_angle,
+                    input.belt_right_angle,                    // 右电机角度反馈
                     input.belt_right_velocity,                 // 右电机速度反馈
                     input.belt_right_torque,                   // 右电机力矩反馈
                     rmcs_msgs::DartMechanismCommand::DOWN,     // 同步带命令设置
                     settings.belt_down_setting_velocity * 1.8, // 同步带目标速度设置
                     rmcs_msgs::ExitMode::WAIT_ZERO_VELOCITY,   // 电机退出模式设置
-                    settings.belt_down_travel_angle * 3.3,
+                    settings.belt_down_travel_angle * 3.3,    // 第一段下行角度
                     20000                                      // 超时时间 ms
                     ));
         } else {
@@ -45,16 +51,16 @@ public:
                     output.belt_command,                       // 同步带命令接口
                     output.belt_target_velocity,               // 同步带目标速度接口
                     output.belt_exit_mode,                     // 电机退出状态接口
-                    input.belt_left_angle,
+                    input.belt_left_angle,                     // 左电机角度反馈
                     input.belt_left_velocity,                  // 左电机速度反馈
                     input.belt_left_torque,                    // 左电机力矩反馈
-                    input.belt_right_angle,
+                    input.belt_right_angle,                    // 右电机角度反馈
                     input.belt_right_velocity,                 // 右电机速度反馈
                     input.belt_right_torque,                   // 右电机力矩反馈
                     rmcs_msgs::DartMechanismCommand::DOWN,     // 同步带命令设置
                     settings.belt_down_setting_velocity * 1.0, // 同步带目标速度设置
                     rmcs_msgs::ExitMode::WAIT_ZERO_VELOCITY,   // 电机退出模式设置
-                    settings.belt_down_travel_angle * 3.3,
+                    settings.belt_down_travel_angle * 3.3,    // 第一段下行角度
                     20000                                      // 超时时间 ms
                     ));
         }
@@ -64,26 +70,26 @@ public:
                 output.belt_command,                           // 同步带命令接口
                 output.belt_target_velocity,                   // 同步带目标速度接口
                 output.belt_exit_mode,                         // 电机退出状态接口
-                input.belt_left_angle,
+                input.belt_left_angle,                         // 左电机角度反馈
                 input.belt_left_velocity,                      // 左电机速度反馈
                 input.belt_left_torque,                        // 左电机力矩反馈
-                input.belt_right_angle,
+                input.belt_right_angle,                        // 右电机角度反馈
                 input.belt_right_velocity,                     // 右电机速度反馈
                 input.belt_right_torque,                       // 右电机力矩反馈
                 rmcs_msgs::DartMechanismCommand::DOWN,         // 同步带命令设置
-                settings.belt_down_setting_velocity * 0.8,     // 同步带目标速度设置
+                settings.belt_down_setting_velocity * 1.,      // 第二段下行目标速度
                 rmcs_msgs::ExitMode::WAIT_HOLD_TORQUE,         // 电机退出模式设置
-                settings.belt_down_travel_angle * 0.5,
+                settings.belt_down_travel_angle * 0.5,         // 第二段下行角度
                 10000                                          // 超时时间 ms
                 ));
 
         if (runtime_state.fire_count > 0) {
             then(
                 std::make_shared<TriggerControlAction>(
-                    "trigger_lock",                            //
-                    output.trigger_command,                    //
-                    rmcs_msgs::DartServoCommand::LOCK,         //
-                    100                                        //
+                    "trigger_lock",                            // 动作名称
+                    output.trigger_command,                    // 扳机命令接口
+                    rmcs_msgs::DartServoCommand::LOCK,         // 扳机锁定命令
+                    100                                        // 舵机稳定等待 tick
                     ));
             then(
                 std::make_shared<FillingLiftAction>(
@@ -106,10 +112,10 @@ public:
         } else {
             then(
                 std::make_shared<TriggerControlAction>(
-                    "trigger_lock",                            //
-                    output.trigger_command,                    //
-                    rmcs_msgs::DartServoCommand::LOCK,         //
-                    1000                                       //
+                    "trigger_lock",                            // 动作名称
+                    output.trigger_command,                    // 扳机命令接口
+                    rmcs_msgs::DartServoCommand::LOCK,         // 扳机锁定命令
+                    1000                                       // 舵机稳定等待 tick
                     ));
         }
 

@@ -13,6 +13,12 @@
 
 namespace rmcs_dart_guidance::manager {
 
+// ─────────────────────────────────────────────────────────────────────────────
+// BeltControlAction
+//   同步带开环控制动作：进入时写入方向、目标速度和可选的力矩上限覆盖值。
+//   运行中通过“低速且高扭矩”连续出现来判定堵转，达到确认次数后返回 SUCCESS，
+//   超时则返回 TIMEOUT。退出时根据 exit_mode 决定保持输出还是回到 WAIT。
+// ─────────────────────────────────────────────────────────────────────────────
 class BeltControlAction : public IAction {
 public:
     BeltControlAction(
@@ -118,6 +124,12 @@ private:
     double max_torque_override_;
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// BeltTravelAction
+//   同步带定程动作：记录进入动作时左右编码器角度，并持续统计平均行程。
+//   当平均行程达到目标距离时返回 SUCCESS；若在规定时间内未达到则返回 TIMEOUT。
+//   退出时根据 exit_mode 决定保持当前状态还是切回 WAIT。
+// ─────────────────────────────────────────────────────────────────────────────
 class BeltTravelAction : public IAction {
 public:
     BeltTravelAction(

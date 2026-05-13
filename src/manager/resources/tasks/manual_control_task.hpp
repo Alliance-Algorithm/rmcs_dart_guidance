@@ -8,6 +8,11 @@
 
 namespace rmcs_dart_guidance::manager {
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ManualControlTask
+//   手动控制任务：仅封装一个 ManualControlAction，把遥控器输入持续映射为同步带、
+//   填装机构、扳机、角度误差和力度误差输出，供人工直接接管机构动作。
+// ─────────────────────────────────────────────────────────────────────────────
 class ManualControlTask : public Task {
 public:
     ManualControlTask(

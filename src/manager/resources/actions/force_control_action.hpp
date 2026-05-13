@@ -13,6 +13,12 @@
 
 namespace rmcs_dart_guidance::manager {
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ForceControlAction
+//   力度闭环上层动作：根据两路力传感器反馈均值实时计算目标力度误差，并持续发布给
+//   下层控制器。误差进入允许范围后返回 SUCCESS；若超过超时窗口仍未收敛则返回
+//   TIMEOUT。退出时会将误差清零。
+// ─────────────────────────────────────────────────────────────────────────────
 class ForceControlAction : public IAction {
 public:
     ForceControlAction(
