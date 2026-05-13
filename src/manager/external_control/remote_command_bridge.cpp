@@ -64,6 +64,11 @@ public:
 
         emit_command("");
 
+        if (carriage_init_receive_) {
+            emit_command("carriage_init");
+            carriage_init_receive_ = false;
+        }
+
         const auto left = *switch_left_;
         const auto right = *switch_right_;
 
@@ -126,11 +131,9 @@ private:
         if (msg == nullptr || msg->data == 0) {
             return;
         }
-
-        emit_command("carriage_init");
-        RCLCPP_INFO(
-            logger_,
-            "[RemoteCommandBridge] /carriage_position/calibrate -> carriage_init");
+        carriage_init_receive_ = true;
+        // emit_command("carriage_init");
+        RCLCPP_INFO(logger_, "[RemoteCommandBridge] /carriage_position/calibrate -> carriage_init");
     }
 
     bool detect_enter_manual_control(rmcs_msgs::Switch current_left) const {
@@ -166,6 +169,7 @@ private:
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr carriage_position_calibrate_subscription_;
 
     bool vision_enable_;
+    std::atomic<bool> carriage_init_receive_;
 
     rmcs_msgs::Switch prev_left_{rmcs_msgs::Switch::UNKNOWN};
     rmcs_msgs::Switch prev_right_{rmcs_msgs::Switch::UNKNOWN};
