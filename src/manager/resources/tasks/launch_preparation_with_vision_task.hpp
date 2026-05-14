@@ -164,18 +164,18 @@ private:
                 input.belt_right_velocity,                 // 右电机速度反馈
                 input.belt_right_torque,                   // 右电机力矩反馈
                 rmcs_msgs::DartMechanismCommand::DOWN,     // 同步带命令设置
-                settings.belt_down_setting_velocity * 1.5, // 同步带目标速度设置
+                settings.belt_down_setting_velocity * 1.7, // 同步带目标速度设置
                 rmcs_msgs::ExitMode::WAIT_HOLD_TORQUE,     // 电机退出模式设置
-                0.25,                                      // 堵转速度阈值
-                4.0,                                       // 堵转力矩阈值
-                500,                                       // 堵转确认帧数
+                0.1,                                       // 堵转速度阈值
+                4.5,                                       // 堵转力矩阈值
+                200,                                       // 堵转确认帧数
                 20000,                                     // 超时时间 ms
-                5.0                                        // 力矩上限
+                8.0                                        // 力矩上限
                 ));
 
         then(
             std::make_shared<TriggerControlAction>(
-                "trigger_lock", output.trigger_command, rmcs_msgs::DartServoCommand::LOCK, 10));
+                "trigger_lock", output.trigger_command, rmcs_msgs::DartServoCommand::LOCK, 200));
     }
 
     void append_belt_up_stage(
