@@ -21,14 +21,13 @@ public:
         const ManagerInputContext& input, ManagerOutputContext& output,
         const ManagerSettings& settings)
         : CarriageTravelTask(
-              "carriage_travel",                        // 任务名称
-              "发射滑台运动",                           // 任务描述
-              input,                                    // 管理器输入上下文
-              output,                                   // 管理器输出上下文
-              rmcs_msgs::DartMechanismCommand::DOWN,    // 丝杆默认运动方向
-              settings.carriage_down_setting_velocity,  // 丝杆默认运动速度
-              settings.carriage_down_travel_angle,      // 丝杆默认运动角度
-              settings) {}                              // 管理器参数配置
+              "carriage_travel", "发射滑台运动",
+              input,                                        // 管理器输入上下文
+              output,                                       // 管理器输出上下文
+              rmcs_msgs::DartMechanismCommand::DOWN,        // 丝杆默认运动方向
+              settings.carriage_down_setting_velocity,      // 丝杆默认运动速度
+              settings.carriage_down_travel_angle,          // 丝杆默认运动角度
+              settings) {}                                  // 管理器参数配置
 
     CarriageTravelTask(
         std::string name, std::string description, const ManagerInputContext& input,
@@ -52,18 +51,18 @@ public:
                 settings.carriage_stall_confirm_ticks));    // 堵转确认帧数
         then(
             std::make_shared<CarriageAngleCloseLoopAction>(
-                "carriage_angle_close_loop",              // 动作名称
-                output.carriage_command,                  // 丝杆命令接口
-                output.carriage_target_velocity,          // 丝杆目标速度接口
-                output.carriage_target_angle,             // 丝杆目标角度接口
-                input.carriage_angle,                     // 丝杆当前位置反馈
-                input.carriage_origin_angle,              // 丝杆原点角反馈
-                command_setting,                          // 闭环运动方向
-                velocity_setting,                         // 闭环速度上限
-                travel_angle_setting,                     // 相对原点目标角度
-                settings.carriage_angle_allowable_error,  // 允许角度误差
-                settings.carriage_min_run_ticks,          // 最小运行 tick
-                settings.carriage_timeout_ticks));        // 闭环超时 tick
+                "carriage_angle_close_loop",                // 动作名称
+                output.carriage_command,                    // 丝杆命令接口
+                output.carriage_target_velocity,            // 丝杆目标速度接口
+                output.carriage_target_angle,               // 丝杆目标角度接口
+                input.carriage_angle,                       // 丝杆当前位置反馈
+                input.carriage_origin_angle,                // 丝杆原点角反馈
+                command_setting,                            // 闭环运动方向
+                velocity_setting,                           // 闭环速度上限
+                travel_angle_setting,                       // 相对原点目标角度
+                settings.carriage_angle_allowable_error,    // 允许角度误差
+                settings.carriage_min_run_ticks,            // 最小运行 tick
+                settings.carriage_timeout_ticks));          // 闭环超时 tick
     }
 };
 

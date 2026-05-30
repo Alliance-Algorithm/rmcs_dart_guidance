@@ -112,6 +112,7 @@ struct ManagerSettings {
     double belt_down_travel_angle;
     double belt_up_setting_velocity;
     double belt_up_travel_angle;
+    double belt_interference_relief_travel_angle;
     double belt_init_setting_velocity;
     double belt_stall_velocity_threshold;
     double belt_stall_torque_threshold;
@@ -132,6 +133,7 @@ struct ManagerSettings {
     double carriage_down_setting_velocity;
     double carriage_down_travel_angle;
     double carriage_up_setting_velocity;
+    double carriage_lift_down_limit;
     double carriage_adjust_down_angle;
     double carriage_adjust_up_angle;
     double carriage_stall_velocity_threshold;

@@ -1,25 +1,27 @@
 #pragma once
 
+#include "manager/core/runtime/action_set.hpp"
 #include "manager/core/runtime/task.hpp"
 #include "manager/manager_types.hpp"
 #include "manager/resources/actions/belt_control_action.hpp"
+#include "manager/resources/actions/filling_lift_action.hpp"
 #include <memory>
 
 namespace rmcs_dart_guidance::manager {
 
-// ─────────────────────────────────────────────────────────────────────────────
-// BeltInitTask
-//   同步带初始化任务：通过一次低速上行堵转检测，将同步带推到上方机械基准位。
-//   任务只包含一个 BeltControlAction，成功条件为稳定检测到堵转。
-// ─────────────────────────────────────────────────────────────────────────────
 class BeltInitTask : public Task {
 public:
     BeltInitTask(
         const ManagerInputContext& input, ManagerOutputContext& output,
         const ManagerSettings& settings)
-        : Task("belt_init", "传送带上行复位") {
+        : Task("dart_init", "飞镖机构复位") {
 
-        then(
+        auto action_set = std::make_shared<ActionSet>(
+            "dart_init",                                     // 动作组名称
+            ActionSet::Policy::ALL_SUCCESS                   // 所有子动作成功才算成功
+        );
+
+        action_set->also(
             std::make_shared<BeltControlAction>(
                 "belt_up",                                   // 动作名称
                 output.belt_command,                         // 同步带命令接口
@@ -38,7 +40,30 @@ public:
                 settings.belt_init_stall_confirm_ticks,      // 堵转确认帧数
                 20000,                                       // 超时时间 ms
                 settings.belt_init_max_torque                // 力矩上限
+                )
+
+        );
+
+        action_set->also(
+            std::make_shared<FillingLiftAction>(
+                "filling_lift_up",                           // 动作名称
+                output.lifting_command,                      // 升降命令接口
+                output.lift_target_velocity,                 // 升降目标速度接口
+                output.lift_exit_mode,                       // 升降退出模式接口
+                input.lift_left_velocity,                    // 左侧升降速度反馈
+                input.lift_left_torque,                      // 左侧升降力矩反馈
+                input.lift_right_velocity,                   // 右侧升降速度反馈
+                input.lift_right_torque,                     // 右侧升降力矩反馈
+                rmcs_msgs::DartMechanismCommand::UP,         // 升降方向
+                settings.lift_target_velocity,               // 升降目标速度
+                rmcs_msgs::ExitMode::WAIT_ZERO_VELOCITY,     // 退出模式
+                settings.lift_stall_velocity_threshold,      // 堵转速度阈值
+                settings.lift_stall_torque_threshold,        // 堵转力矩阈值
+                settings.lift_stall_confirm_ticks,           // 堵转确认帧数
+                20000                                        // 超时 tick
                 ));
+
+        then(action_set);
     }
 };
 

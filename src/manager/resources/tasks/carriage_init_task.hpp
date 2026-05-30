@@ -156,7 +156,7 @@ public:
                 input.carriage_angle,                                   // 丝杆当前位置反馈
                 input.carriage_origin_angle,                            // 丝杆原点角反馈
                 rmcs_msgs::DartMechanismCommand::UP,                    // 回退方向
-                settings.carriage_up_setting_velocity,                  // 闭环目标速度
+                settings.carriage_up_setting_velocity * 2.0,            // 闭环目标速度
                 settings.carriage_calibration_parking_angle,            // 相对原点停靠角度
                 settings.carriage_angle_allowable_error,                // 允许角度误差
                 settings.carriage_min_run_ticks,                        // 最小运行 tick

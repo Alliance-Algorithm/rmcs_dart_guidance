@@ -4,6 +4,7 @@
 #include "manager/resources/tasks/cancel_launch_task.hpp"
 #include "manager/resources/tasks/carriage_init_task.hpp"
 #include "manager/resources/tasks/carriage_travel_task.hpp"
+#include "manager/resources/tasks/continuous_dart_station_open_tasks.hpp"
 #include "manager/resources/tasks/filling_lift_task.hpp"
 #include "manager/resources/tasks/fire_and_preload_task.hpp"
 #include "manager/resources/tasks/launch_preparation_task.hpp"
@@ -49,6 +50,16 @@ std::shared_ptr<Task> make_task(
 
     if (cmd == "launch_prepare_with_vision" || cmd == "launch-prepare-with-vision") {
         return std::make_shared<LaunchPreparationWithVisionTask>(
+            input, output, settings, profile_provider, runtime_state);
+    }
+
+    if (cmd == "first_dart_station_open_task" || cmd == "first-dart-station-open-task") {
+        return std::make_shared<FirstDartStationOpenTask>(
+            input, output, settings, profile_provider, runtime_state);
+    }
+
+    if (cmd == "second_dart_station_open_task" || cmd == "second-dart-station-open-task") {
+        return std::make_shared<SecondDartStationOpenTask>(
             input, output, settings, profile_provider, runtime_state);
     }
 
