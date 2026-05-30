@@ -38,6 +38,74 @@ private:
     std::string message_;
 };
 
+class TimeoutTolerantVisionAimAction : public IAction {
+public:
+    explicit TimeoutTolerantVisionAimAction(std::shared_ptr<IAction> inner_action)
+        : IAction("vision_aim_timeout_tolerant")
+        , inner_action_(std::move(inner_action)) {}
+
+    void bind_runtime_context(const ActionRuntimeContext& context) override {
+        IAction::bind_runtime_context(context);
+        if (inner_action_) {
+            inner_action_->bind_runtime_context(context);
+        }
+    }
+
+    bool should_log_lifecycle() const override { return false; }
+
+    void on_enter() override {
+        inner_started_ = false;
+        if (inner_action_ == nullptr) {
+            return;
+        }
+    }
+
+    ActionStatus update() override {
+        if (inner_action_ == nullptr) {
+            return fail(ActionFailureReason::CONFIGURATION_ERROR);
+        }
+
+        const ActionStatus status =
+            inner_started_ ? inner_action_->tick() : inner_action_->tick_first();
+        inner_started_ = true;
+
+        if (status == ActionStatus::SUCCESS) {
+            inner_action_->finish_success();
+            return ActionStatus::SUCCESS;
+        }
+
+        if (status == ActionStatus::FAILURE) {
+            const auto& failure = inner_action_->failure_info();
+            if (failure.reason == ActionFailureReason::INVALID_INPUT
+                || failure.reason == ActionFailureReason::TIMEOUT
+                || failure.reason == ActionFailureReason::STALE_INPUT) {
+                inner_action_->finish_failure();
+                return ActionStatus::SUCCESS;
+            }
+
+            set_failure_info(failure);
+            inner_action_->finish_failure();
+            return ActionStatus::FAILURE;
+        }
+
+        return ActionStatus::RUNNING;
+    }
+
+    void on_exit() override { cancel_inner(ActionCancelReason::NORMAL_COMPLETION); }
+
+    void on_cancel(ActionCancelReason reason) override { cancel_inner(reason); }
+
+private:
+    void cancel_inner(ActionCancelReason reason) {
+        if (inner_action_ && inner_action_->is_active()) {
+            inner_action_->cancel(reason);
+        }
+    }
+
+    std::shared_ptr<IAction> inner_action_;
+    bool inner_started_{false};
+};
+
 class LaunchPreparationVisionMechanicalTask : public Task {
 public:
     LaunchPreparationVisionMechanicalTask(
@@ -164,13 +232,13 @@ private:
                 input.belt_right_velocity,                 // 右电机速度反馈
                 input.belt_right_torque,                   // 右电机力矩反馈
                 rmcs_msgs::DartMechanismCommand::DOWN,     // 同步带命令设置
-                settings.belt_down_setting_velocity * 1.7, // 同步带目标速度设置
+                settings.belt_down_setting_velocity * 1.5, // 同步带目标速度设置
                 rmcs_msgs::ExitMode::WAIT_HOLD_TORQUE,     // 电机退出模式设置
                 0.1,                                       // 堵转速度阈值
-                4.5,                                       // 堵转力矩阈值
+                4.0,                                       // 堵转力矩阈值
                 200,                                       // 堵转确认帧数
                 20000,                                     // 超时时间 ms
-                8.0                                        // 力矩上限
+                6.0                                        // 力矩上限
                 ));
 
         then(
@@ -187,7 +255,7 @@ private:
                 output.belt_exit_mode, input.belt_left_angle, input.belt_left_velocity,
                 input.belt_left_torque, input.belt_right_angle, input.belt_right_velocity,
                 input.belt_right_torque, rmcs_msgs::DartMechanismCommand::UP,
-                settings.belt_up_setting_velocity * 0.5, rmcs_msgs::ExitMode::KEEP,
+                settings.belt_up_setting_velocity * 0.3, rmcs_msgs::ExitMode::KEEP,
                 settings.belt_up_travel_angle, 20000));
 
         then(
@@ -222,6 +290,14 @@ public:
         const ManagerInputContext& input, ManagerOutputContext& output,
         const ManagerSettings& settings, const VisionAimProfileProvider& profile_provider,
         const ManagerRuntimeState& runtime_state)
+        : LaunchPreparationWithVisionTask(
+              input, output, settings, profile_provider, runtime_state, false) {}
+
+protected:
+    LaunchPreparationWithVisionTask(
+        const ManagerInputContext& input, ManagerOutputContext& output,
+        const ManagerSettings& settings, const VisionAimProfileProvider& profile_provider,
+        const ManagerRuntimeState& runtime_state, bool vision_aim_timeout_as_success)
         : Task("launch_prepare_with_vision", "视觉辅助发射准备") {
         auto action_set = std::make_shared<ActionSet>(
             "launch_prepare_with_vision_set", ActionSet::Policy::ALL_SUCCESS);
@@ -229,21 +305,39 @@ public:
         action_set->also(
             std::make_shared<LaunchPreparationVisionMechanicalTask>(
                 input, output, settings, profile_provider, runtime_state));
-        action_set->also(
+
+        auto vision_aim_action =
             std::make_shared<VisionAimAction>(
                 "vision_aim", input.current_target, input.tracking, input.target_seq,
                 input.pitch_angle, output.angle_error_vector, profile_provider,
-                runtime_state.fire_count));
+                runtime_state.fire_count);
+        if (vision_aim_timeout_as_success) {
+            action_set->also(
+                std::make_shared<TimeoutTolerantVisionAimAction>(vision_aim_action));
+        } else {
+            action_set->also(vision_aim_action);
+        }
         action_set->also(
             std::make_shared<TriggerCarriagePositionAimAction>(
                 "trigger_carriage_position_aim", output.carriage_command,
                 output.carriage_target_velocity, output.carriage_target_angle, input.carriage_angle,
                 input.carriage_origin_angle, profile_provider, runtime_state.fire_count,
-                settings.carriage_down_setting_velocity, settings.carriage_up_setting_velocity,
-                settings.carriage_angle_allowable_error, settings.carriage_timeout_ticks));
+                settings.carriage_down_setting_velocity,
+                settings.carriage_up_setting_velocity * 1.5,
+                settings.carriage_angle_allowable_error, settings.carriage_timeout_ticks, 5000));
 
         then(action_set);
     }
+};
+
+class LaunchPreparationWithVisionTimeoutTolerantTask : public LaunchPreparationWithVisionTask {
+public:
+    LaunchPreparationWithVisionTimeoutTolerantTask(
+        const ManagerInputContext& input, ManagerOutputContext& output,
+        const ManagerSettings& settings, const VisionAimProfileProvider& profile_provider,
+        const ManagerRuntimeState& runtime_state)
+        : LaunchPreparationWithVisionTask(
+              input, output, settings, profile_provider, runtime_state, true) {}
 };
 
 } // namespace rmcs_dart_guidance::manager

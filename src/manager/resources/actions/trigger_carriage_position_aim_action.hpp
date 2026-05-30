@@ -29,7 +29,7 @@ public:
         const double& carriage_angle, const double& carriage_origin_angle,
         const VisionAimProfileProvider& profile_provider, uint32_t fire_count,
         double carriage_down_velocity, double carriage_up_velocity, double allowable_error,
-        uint64_t timeout_ticks)
+        uint64_t timeout_ticks, uint64_t runtime_min)
         : IAction(std::move(name))
         , carriage_command_(carriage_command_interface)
         , carriage_target_velocity_(carriage_target_velocity_interface)
@@ -41,7 +41,8 @@ public:
         , carriage_down_velocity_(carriage_down_velocity)
         , carriage_up_velocity_(carriage_up_velocity)
         , allowable_error_(allowable_error)
-        , timeout_ticks_(timeout_ticks) {}
+        , timeout_ticks_(timeout_ticks)
+        , runtime_min_(runtime_min) {}
 
     void on_enter() override {
         configuration_error_message_.clear();
@@ -83,6 +84,10 @@ public:
         if (!active_profile_.has_value()) {
             log_configuration_error();
             return fail(ActionFailureReason::CONFIGURATION_ERROR);
+        }
+
+        if (elapsed_ticks() < runtime_min_) {
+            return ActionStatus::RUNNING;
         }
 
         if (std::abs(carriage_angle_ - target_angle_) <= allowable_error_) {
@@ -130,6 +135,7 @@ private:
     double carriage_up_velocity_;
     double allowable_error_;
     uint64_t timeout_ticks_;
+    uint64_t runtime_min_;
 
     std::optional<VisionAimRuntimeProfile> active_profile_;
     std::string configuration_error_message_;

@@ -3,6 +3,7 @@
 #include "manager/core/runtime/task.hpp"
 #include "manager/manager_types.hpp"
 #include "manager/resources/actions/delay_action.hpp"
+#include "manager/resources/actions/fire_count_increment_action.hpp"
 #include "manager/resources/actions/filling_lift_action.hpp"
 #include "manager/resources/actions/filling_limit_servo_action.hpp"
 #include "manager/resources/actions/trigger_control_action.hpp"
@@ -21,7 +22,7 @@ class FireAndPreloadTask : public Task {
 public:
     FireAndPreloadTask(
         const ManagerInputContext& input, ManagerOutputContext& output,
-        const ManagerSettings& settings, const ManagerRuntimeState& runtime_state)
+        const ManagerSettings& settings, ManagerRuntimeState& runtime_state)
         : Task("fire_preload", "发射并预装填") {
         then(
             std::make_shared<DelayAction>(
@@ -66,6 +67,12 @@ public:
                     settings.limiting_fill_ticks             // 预装填持续帧数
                     ));
         }
+
+        then(
+            std::make_shared<FireCountIncrementAction>(
+                "fire_count_increment",                      // 动作名称
+                runtime_state.fire_count                     // 发射计数
+                ));
     }
 };
 

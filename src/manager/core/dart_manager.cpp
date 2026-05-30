@@ -465,9 +465,6 @@ private:
         task_state_.first_tick_of_task = false;
 
         if (status == ActionStatus::SUCCESS) {
-            if (task_name == "fire_preload") {
-                increment_fire_count();
-            }
             log_carriage_calibration_encoder(task_name);
             task_state_.current_task->finish_success();
             RCLCPP_INFO(logger_, "[DartManager] task '%s' SUCCESS", task_name.c_str());
@@ -601,11 +598,6 @@ private:
     }
 
     void reset_fire_count() { runtime_state_.fire_count = 0; }
-
-    void increment_fire_count() {
-        ++runtime_state_.fire_count;
-        RCLCPP_INFO(logger_, "[DartManager] fire_count=%u", runtime_state_.fire_count);
-    }
 
     ManagerInputContext input_context() {
         return ManagerInputContext{
