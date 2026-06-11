@@ -154,23 +154,23 @@ private:
 
         then(
             std::make_shared<BeltControlAction>(
-                "belt_down",                               // 动作名称
-                output.belt_command,                       // 同步带命令接口
-                output.belt_target_velocity,               // 同步带目标速度接口
-                output.belt_exit_mode,                     // 电机退出状态接口
-                output.belt_max_torque_override,           // 电机力矩上限覆盖接口
-                input.belt_left_velocity,                  // 左电机速度反馈
-                input.belt_left_torque,                    // 左电机力矩反馈
-                input.belt_right_velocity,                 // 右电机速度反馈
-                input.belt_right_torque,                   // 右电机力矩反馈
-                rmcs_msgs::DartMechanismCommand::DOWN,     // 同步带命令设置
-                settings.belt_down_setting_velocity * 1.7, // 同步带目标速度设置
-                rmcs_msgs::ExitMode::WAIT_HOLD_TORQUE,     // 电机退出模式设置
-                0.1,                                       // 堵转速度阈值
-                4.5,                                       // 堵转力矩阈值
-                200,                                       // 堵转确认帧数
-                20000,                                     // 超时时间 ms
-                8.0                                        // 力矩上限
+                "belt_down",                                // 动作名称
+                output.belt_command,                        // 同步带命令接口
+                output.belt_target_velocity,                // 同步带目标速度接口
+                output.belt_exit_mode,                      // 电机退出状态接口
+                output.belt_max_torque_override,            // 电机力矩上限覆盖接口
+                input.belt_left_velocity,                   // 左电机速度反馈
+                input.belt_left_torque,                     // 左电机力矩反馈
+                input.belt_right_velocity,                  // 右电机速度反馈
+                input.belt_right_torque,                    // 右电机力矩反馈
+                rmcs_msgs::DartMechanismCommand::DOWN,      // 同步带命令设置
+                settings.belt_down_setting_velocity * 1.55, // 同步带目标速度设置
+                rmcs_msgs::ExitMode::WAIT_HOLD_TORQUE,      // 电机退出模式设置
+                0.1,                                        // 堵转速度阈值
+                4.5,                                        // 堵转力矩阈值
+                200,                                        // 堵转确认帧数
+                20000,                                      // 超时时间 ms
+                5.5                                         // 力矩上限
                 ));
 
         then(
@@ -229,18 +229,19 @@ public:
         action_set->also(
             std::make_shared<LaunchPreparationVisionMechanicalTask>(
                 input, output, settings, profile_provider, runtime_state));
-        action_set->also(
-            std::make_shared<VisionAimAction>(
-                "vision_aim", input.current_target, input.tracking, input.target_seq,
-                input.pitch_angle, output.angle_error_vector, profile_provider,
-                runtime_state.fire_count));
-        action_set->also(
-            std::make_shared<TriggerCarriagePositionAimAction>(
-                "trigger_carriage_position_aim", output.carriage_command,
-                output.carriage_target_velocity, output.carriage_target_angle, input.carriage_angle,
-                input.carriage_origin_angle, profile_provider, runtime_state.fire_count,
-                settings.carriage_down_setting_velocity, settings.carriage_up_setting_velocity,
-                settings.carriage_angle_allowable_error, settings.carriage_timeout_ticks));
+        // action_set->also(
+        //     std::make_shared<VisionAimAction>(
+        //         "vision_aim", input.current_target, input.tracking, input.target_seq,
+        //         input.pitch_angle, output.angle_error_vector, profile_provider,
+        //         runtime_state.fire_count));
+        // action_set->also(
+        //     std::make_shared<TriggerCarriagePositionAimAction>(
+        //         "trigger_carriage_position_aim", output.carriage_command,
+        //         output.carriage_target_velocity, output.carriage_target_angle,
+        //         input.carriage_angle, input.carriage_origin_angle, profile_provider,
+        //         runtime_state.fire_count, settings.carriage_down_setting_velocity,
+        //         settings.carriage_up_setting_velocity, settings.carriage_angle_allowable_error,
+        //         settings.carriage_timeout_ticks));
 
         then(action_set);
     }

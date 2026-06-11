@@ -1,26 +1,53 @@
 #pragma once
 
+#include "manager/core/runtime/action_sequence.hpp"
 #include "manager/core/runtime/action_set.hpp"
 #include "manager/core/runtime/task.hpp"
 #include "manager/manager_types.hpp"
 #include "manager/resources/actions/belt_control_action.hpp"
+#include "manager/resources/actions/chassis_leveling_action.hpp"
 #include "manager/resources/actions/filling_lift_action.hpp"
 #include <memory>
 
 namespace rmcs_dart_guidance::manager {
 
-class BeltInitTask : public Task {
+class DartInitTask : public Task {
 public:
-    BeltInitTask(
+    DartInitTask(
         const ManagerInputContext& input, ManagerOutputContext& output,
         const ManagerSettings& settings)
         : Task("dart_init", "飞镖机构复位") {
+
+        auto make_leveling_round = [&](int round_index) -> std::shared_ptr<ActionSequence> {
+            auto round = std::make_shared<ActionSequence>(
+                "roll_pitch_leveling_" + std::to_string(round_index));
+
+            round->then(
+                std::make_shared<RollLevelingAction>(
+                    "roll_leveling_" + std::to_string(round_index),
+                    output.chassis_roll_leveling_flag, input.roll_angle,
+                    input.leveling_front_left_velocity, input.leveling_rear_left_velocity,
+                    input.leveling_front_left_torque, input.leveling_rear_left_torque));
+
+            round->then(
+                std::make_shared<PitchLevelingAction>(
+                    "pitch_leveling_" + std::to_string(round_index),
+                    output.chassis_pitch_leveling_flag, input.pitch_angle,
+                    input.leveling_front_left_velocity, input.leveling_front_left_torque,
+                    input.leveling_front_right_velocity, input.leveling_front_right_torque));
+
+            return round;
+        };
+
+        auto chassis_leveling = std::make_shared<ActionSequence>("chassis_leveling");
+        chassis_leveling->then(make_leveling_round(1));
+        chassis_leveling->then(make_leveling_round(2));
+        chassis_leveling->then(make_leveling_round(3));
 
         auto action_set = std::make_shared<ActionSet>(
             "dart_init",                                     // 动作组名称
             ActionSet::Policy::ALL_SUCCESS                   // 所有子动作成功才算成功
         );
-
         action_set->also(
             std::make_shared<BeltControlAction>(
                 "belt_up",                                   // 动作名称
@@ -62,6 +89,8 @@ public:
                 settings.lift_stall_confirm_ticks,           // 堵转确认帧数
                 20000                                        // 超时 tick
                 ));
+
+        action_set->also(chassis_leveling);
 
         then(action_set);
     }

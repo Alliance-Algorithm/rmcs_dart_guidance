@@ -41,7 +41,7 @@ public:
                     rmcs_msgs::DartMechanismCommand::DOWN,     // 同步带命令设置
                     settings.belt_down_setting_velocity * 1.8, // 同步带目标速度设置
                     rmcs_msgs::ExitMode::WAIT_ZERO_VELOCITY,   // 电机退出模式设置
-                    settings.belt_down_travel_angle * 3.3,    // 第一段下行角度
+                    settings.belt_down_travel_angle * 3.3,     // 第一段下行角度
                     20000                                      // 超时时间 ms
                     ));
         } else {
@@ -60,7 +60,7 @@ public:
                     rmcs_msgs::DartMechanismCommand::DOWN,     // 同步带命令设置
                     settings.belt_down_setting_velocity * 1.0, // 同步带目标速度设置
                     rmcs_msgs::ExitMode::WAIT_ZERO_VELOCITY,   // 电机退出模式设置
-                    settings.belt_down_travel_angle * 3.3,    // 第一段下行角度
+                    settings.belt_down_travel_angle * 3.3,     // 第一段下行角度
                     20000                                      // 超时时间 ms
                     ));
         }
@@ -152,9 +152,9 @@ public:
                 input.belt_right_velocity,                  // 右电机速度反馈
                 input.belt_right_torque,                    // 右电机力矩反馈
                 rmcs_msgs::DartMechanismCommand::UP,        // 同步带命令设置
-                settings.belt_up_setting_velocity * 2,      // 同步带目标速度设置
+                settings.belt_up_setting_velocity * 2.0,    // 同步带目标速度设置
                 rmcs_msgs::ExitMode::KEEP,                  // 电机退出模式设置
-                settings.belt_up_travel_angle * 1.3,        // 第二段上行角度
+                settings.belt_up_travel_angle * 2.0,        // 第二段上行角度
                 20000                                       // 超时时间 ms
                 ));
 
@@ -178,17 +178,6 @@ public:
                 20000,                                      // 超时时间 ms
                 settings.belt_init_max_torque               // 力矩上限
                 ));
-
-        // then(
-        //     std::make_shared<ForceControlAction>(
-        //         "force_close_loop",                          //
-        //         output.force_error,                          //
-        //         input.force_sensor_ch1,                      //
-        //         input.force_sensor_ch2,                      //
-        //         settings.force_setpoint,                     //
-        //         settings.force_allowable_error,              //
-        //         20000                                        //
-        //         ));
     }
 };
 

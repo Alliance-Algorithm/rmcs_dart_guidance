@@ -4,6 +4,7 @@
 #include "manager/resources/tasks/cancel_launch_task.hpp"
 #include "manager/resources/tasks/carriage_init_task.hpp"
 #include "manager/resources/tasks/carriage_travel_task.hpp"
+#include "manager/resources/tasks/dart_init_task.hpp"
 #include "manager/resources/tasks/filling_lift_task.hpp"
 #include "manager/resources/tasks/fire_and_preload_task.hpp"
 #include "manager/resources/tasks/launch_preparation_task.hpp"
@@ -12,7 +13,11 @@
 #include "manager/resources/tasks/trigger_control_task.hpp"
 
 namespace rmcs_dart_guidance::manager {
-
+std::shared_ptr<Task> make_dart_init_task(
+    const ManagerInputContext& input, ManagerOutputContext& output,
+    const ManagerSettings& settings) {
+    return std::make_shared<DartInitTask>(input, output, settings);
+}
 std::shared_ptr<Task> make_belt_init_task(
     const ManagerInputContext& input, ManagerOutputContext& output,
     const ManagerSettings& settings) {
@@ -20,8 +25,8 @@ std::shared_ptr<Task> make_belt_init_task(
 }
 
 std::shared_ptr<Task> make_carriage_calibration_task(
-    const ManagerInputContext& input, ManagerOutputContext& output,
-    const ManagerSettings& settings, ManagerRuntimeState& runtime_state) {
+    const ManagerInputContext& input, ManagerOutputContext& output, const ManagerSettings& settings,
+    ManagerRuntimeState& runtime_state) {
     return std::make_shared<CarriageCalibrationTask>(input, output, settings, runtime_state);
 }
 

@@ -52,8 +52,7 @@ public:
         }
         allowable_error_ = *allowable_error;
 
-        const auto timeout_ticks =
-            read_uint64(node, "vision_aim.timeout_ticks", "timeout_ticks");
+        const auto timeout_ticks = read_uint64(node, "vision_aim.timeout_ticks", "timeout_ticks");
         if (!timeout_ticks) {
             return;
         }
@@ -97,12 +96,8 @@ public:
 
         const auto& shot_profile = shot_profiles_[fire_count];
         return VisionAimRuntimeProfile{
-            allowable_error_,
-            timeout_ticks_,
-            shot_profile.reference_point,
-            shot_profile.offset,
-            shot_profile.pitch_angle,
-            shot_profile.trigger_carriage_position,
+            allowable_error_,    timeout_ticks_,           shot_profile.reference_point,
+            shot_profile.offset, shot_profile.pitch_angle, shot_profile.trigger_carriage_position,
         };
     }
 
@@ -234,8 +229,8 @@ private:
         return cv::Point2i(*x, *y);
     }
 
-    std::optional<int> read_int(
-        rclcpp::Node& node, const std::string& parameter_name, const std::string& label) {
+    std::optional<int>
+        read_int(rclcpp::Node& node, const std::string& parameter_name, const std::string& label) {
         if (!node.has_parameter(parameter_name)) {
             return std::nullopt;
         }
@@ -250,8 +245,8 @@ private:
         return static_cast<int>(raw_value);
     }
 
-    std::optional<double> read_double(
-        rclcpp::Node& node, const std::string& parameter_name, const std::string&) {
+    static std::optional<double>
+        read_double(rclcpp::Node& node, const std::string& parameter_name, const std::string&) {
         if (!node.has_parameter(parameter_name)) {
             return std::nullopt;
         }

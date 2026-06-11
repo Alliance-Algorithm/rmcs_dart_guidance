@@ -57,6 +57,16 @@ struct ManagerInputContext {
 
     // limit servo
 
+    // chassis leveling
+    const double& leveling_front_left_velocity;
+    const double& leveling_front_left_torque;
+    const double& leveling_front_right_velocity;
+    const double& leveling_front_right_torque;
+    const double& leveling_rear_left_velocity;
+    const double& leveling_rear_left_torque;
+    const double& leveling_rear_right_velocity;
+    const double& leveling_rear_right_torque;
+
     // yaw pitch force
     const int32_t& force_sensor_ch1;
     const int32_t& force_sensor_ch2;
@@ -66,6 +76,7 @@ struct ManagerInputContext {
     const bool& tracking;
     const uint64_t& target_seq;
     const double& pitch_angle;
+    const double& roll_angle;
 
     // remote control
     const rmcs_msgs::Switch& remote_left_switch;
@@ -98,6 +109,10 @@ struct ManagerOutputContext {
     double& carriage_target_velocity;
     double& carriage_target_angle;
     double& carriage_origin_angle;
+
+    // chassis leveling
+    bool& chassis_pitch_leveling_flag;
+    bool& chassis_roll_leveling_flag;
 
     // yaw pitch force
     int32_t& force_error;
