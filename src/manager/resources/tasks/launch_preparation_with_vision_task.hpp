@@ -1,8 +1,10 @@
 #pragma once
 
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "manager/core/runtime/action.hpp"
 #include "manager/core/runtime/action_set.hpp"
@@ -78,24 +80,30 @@ private:
     void append_belt_down_stage(
         const ManagerInputContext& input, ManagerOutputContext& output,
         const ManagerSettings& settings, bool is_followup_fire) {
-        then(
-            std::make_shared<BeltTravelAction>(
-                "belt_down_travel_1", output.belt_command, output.belt_target_velocity,
-                output.belt_exit_mode, input.belt_left_angle, input.belt_left_velocity,
-                input.belt_left_torque, input.belt_right_angle, input.belt_right_velocity,
-                input.belt_right_torque, rmcs_msgs::DartMechanismCommand::DOWN,
-                settings.belt_down_setting_velocity * (is_followup_fire ? 2.0 : 1.0),
-                rmcs_msgs::ExitMode::WAIT_ZERO_VELOCITY, settings.belt_down_travel_angle * 3.3,
-                20000));
+        const double no_torque_limit = std::numeric_limits<double>::quiet_NaN();
 
         then(
-            std::make_shared<BeltTravelAction>(
-                "belt_down_travel_2", output.belt_command, output.belt_target_velocity,
-                output.belt_exit_mode, input.belt_left_angle, input.belt_left_velocity,
-                input.belt_left_torque, input.belt_right_angle, input.belt_right_velocity,
-                input.belt_right_torque, rmcs_msgs::DartMechanismCommand::DOWN,
-                settings.belt_down_setting_velocity * 1.2, rmcs_msgs::ExitMode::WAIT_HOLD_TORQUE,
-                settings.belt_down_travel_angle * 0.5, 10000));
+            std::make_shared<BeltDisplacementPlanAction>(
+                "belt_down_plan", output.belt_command, output.belt_target_velocity,
+                output.belt_exit_mode, output.belt_max_torque_override, input.belt_left_angle,
+                input.belt_right_angle, settings.belt_down_setting_velocity,
+                std::vector<BeltDisplacementSwitchPoint>{
+                    {
+                        settings.belt_down_travel_angle * 3.3,
+                        is_followup_fire ? 2.0 : 1.0,
+                        rmcs_msgs::DartMechanismCommand::DOWN,
+                        rmcs_msgs::ExitMode::WAIT_ZERO_VELOCITY,
+                        no_torque_limit,
+                    },
+                    {
+                        settings.belt_down_travel_angle * 3.8,
+                        1.2,
+                        rmcs_msgs::DartMechanismCommand::DOWN,
+                        rmcs_msgs::ExitMode::WAIT_HOLD_TORQUE,
+                        no_torque_limit,
+                    },
+                },
+                20000));
     }
 
     void append_standard_mid_stage(
@@ -125,6 +133,8 @@ private:
     void append_interference_relief_stage(
         const ManagerInputContext& input, ManagerOutputContext& output,
         const ManagerSettings& settings) {
+        const double no_torque_limit = std::numeric_limits<double>::quiet_NaN();
+
         then(
             std::make_shared<FillingLiftAction>(
                 "filling_lift_down", output.lifting_command, output.lift_target_velocity,
@@ -135,13 +145,20 @@ private:
                 settings.lift_stall_torque_threshold, settings.lift_stall_confirm_ticks, 20000));
 
         then(
-            std::make_shared<BeltTravelAction>(
-                "belt_up_interference_relief", output.belt_command, output.belt_target_velocity,
-                output.belt_exit_mode, input.belt_left_angle, input.belt_left_velocity,
-                input.belt_left_torque, input.belt_right_angle, input.belt_right_velocity,
-                input.belt_right_torque, rmcs_msgs::DartMechanismCommand::UP,
-                settings.belt_up_setting_velocity * 0.5, rmcs_msgs::ExitMode::WAIT_ZERO_VELOCITY,
-                settings.belt_interference_relief_travel_angle, 20000));
+            std::make_shared<BeltDisplacementPlanAction>(
+                "belt_interference_relief_plan", output.belt_command, output.belt_target_velocity,
+                output.belt_exit_mode, output.belt_max_torque_override, input.belt_left_angle,
+                input.belt_right_angle, settings.belt_up_setting_velocity,
+                std::vector<BeltDisplacementSwitchPoint>{
+                    {
+                        settings.belt_interference_relief_travel_angle,
+                        0.5,
+                        rmcs_msgs::DartMechanismCommand::UP,
+                        rmcs_msgs::ExitMode::WAIT_ZERO_VELOCITY,
+                        no_torque_limit,
+                    },
+                },
+                20000));
 
         then(
             std::make_shared<FillingLiftAction>(
@@ -181,23 +198,30 @@ private:
     void append_belt_up_stage(
         const ManagerInputContext& input, ManagerOutputContext& output,
         const ManagerSettings& settings) {
-        then(
-            std::make_shared<BeltTravelAction>(
-                "belt_up_travel_1", output.belt_command, output.belt_target_velocity,
-                output.belt_exit_mode, input.belt_left_angle, input.belt_left_velocity,
-                input.belt_left_torque, input.belt_right_angle, input.belt_right_velocity,
-                input.belt_right_torque, rmcs_msgs::DartMechanismCommand::UP,
-                settings.belt_up_setting_velocity * 0.5, rmcs_msgs::ExitMode::KEEP,
-                settings.belt_up_travel_angle, 20000));
+        const double no_torque_limit = std::numeric_limits<double>::quiet_NaN();
 
         then(
-            std::make_shared<BeltTravelAction>(
-                "belt_up_travel_2", output.belt_command, output.belt_target_velocity,
-                output.belt_exit_mode, input.belt_left_angle, input.belt_left_velocity,
-                input.belt_left_torque, input.belt_right_angle, input.belt_right_velocity,
-                input.belt_right_torque, rmcs_msgs::DartMechanismCommand::UP,
-                settings.belt_up_setting_velocity * 2.0, rmcs_msgs::ExitMode::KEEP,
-                settings.belt_up_travel_angle * 1.3, 20000));
+            std::make_shared<BeltDisplacementPlanAction>(
+                "belt_up_plan", output.belt_command, output.belt_target_velocity,
+                output.belt_exit_mode, output.belt_max_torque_override, input.belt_left_angle,
+                input.belt_right_angle, settings.belt_up_setting_velocity,
+                std::vector<BeltDisplacementSwitchPoint>{
+                    {
+                        settings.belt_up_travel_angle,
+                        0.5,
+                        rmcs_msgs::DartMechanismCommand::UP,
+                        rmcs_msgs::ExitMode::KEEP,
+                        no_torque_limit,
+                    },
+                    {
+                        settings.belt_up_travel_angle * 2.3,
+                        2.0,
+                        rmcs_msgs::DartMechanismCommand::UP,
+                        rmcs_msgs::ExitMode::KEEP,
+                        no_torque_limit,
+                    },
+                },
+                20000));
 
         then(
             std::make_shared<BeltControlAction>(

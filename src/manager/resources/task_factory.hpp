@@ -21,6 +21,13 @@ std::shared_ptr<Task> make_carriage_calibration_task(
     const ManagerInputContext& input, ManagerOutputContext& output, const ManagerSettings& settings,
     ManagerRuntimeState& runtime_state);
 
+std::shared_ptr<Task> make_chassis_initial_calibration_task(
+    const ManagerInputContext& input, ManagerOutputContext& output,
+    const ManagerSettings& settings);
+
+std::shared_ptr<Task> make_chassis_leveling_adjust_task(
+    const ManagerInputContext& input, ManagerOutputContext& output,
+    const ManagerSettings& settings);
 std::shared_ptr<Task> make_carriage_travel_task(
     const ManagerInputContext& input, ManagerOutputContext& output,
     const ManagerSettings& settings);

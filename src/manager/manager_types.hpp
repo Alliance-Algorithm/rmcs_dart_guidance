@@ -10,6 +10,7 @@
 
 #include "Eigen/src/Core/Matrix.h"
 #include "manager/core/runtime/action.hpp"
+#include "rmcs_msgs/chassis_leveling_phase.hpp"
 #include "rmcs_msgs/dart_mechanism_command.hpp"
 #include "rmcs_msgs/dart_motor_exit_mode.hpp"
 #include "rmcs_msgs/dart_servo_command.hpp"
@@ -68,8 +69,6 @@ struct ManagerInputContext {
     const double& leveling_rear_right_torque;
 
     // yaw pitch force
-    const int32_t& force_sensor_ch1;
-    const int32_t& force_sensor_ch2;
 
     // vision
     const cv::Point2i& current_target;
@@ -111,8 +110,11 @@ struct ManagerOutputContext {
     double& carriage_origin_angle;
 
     // chassis leveling
-    bool& chassis_pitch_leveling_flag;
-    bool& chassis_roll_leveling_flag;
+    rmcs_msgs::ChassisLevelingPhase& chassis_leveling_phase;
+    double& leveling_front_left_target_velocity;
+    double& leveling_front_right_target_velocity;
+    double& leveling_rear_left_target_velocity;
+    double& leveling_rear_right_target_velocity;
 
     // yaw pitch force
     int32_t& force_error;
@@ -169,7 +171,17 @@ struct ManagerSettings {
     // limit servo
     uint64_t limiting_fill_ticks;
 
-    // yaw pitch force
+    // chassis leveling
+    double chassis_leveling_stall_velocity_threshold;
+    double chassis_leveling_stall_torque_threshold;
+    uint64_t chassis_leveling_stall_confirm_ticks;
+    uint64_t chassis_leveling_min_run_ticks;
+    double chassis_leveling_angle_allowable_error;
+    uint64_t chassis_leveling_angle_confirm_ticks;
+    uint64_t chassis_leveling_contact_timeout_ticks;
+    uint64_t chassis_leveling_axis_timeout_ticks;
+
+    // manual control
     double manual_angle_max_error;
     int32_t manual_force_max_error;
 };

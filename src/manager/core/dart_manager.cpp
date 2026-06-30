@@ -150,12 +150,20 @@ public:
         register_output(
             "/dart_manager/angle/error_vector", angle_error_vector_, Eigen::Vector2d::Zero());
         register_output(
-            "/dart_manager/chassis_leveling/pitch/flag", chassis_pitch_leveling_flag_, false);
+            "/dart_manager/chassis_leveling/phase", chassis_leveling_phase_,
+            rmcs_msgs::ChassisLevelingPhase::IDLE);
         register_output(
-            "/dart_manager/chassis_leveling/roll/flag", chassis_roll_leveling_flag_, false);
-
-        register_input("/force_sensor/channel_1/weight", force_sensor_ch1_);
-        register_input("/force_sensor/channel_2/weight", force_sensor_ch2_);
+            "/dart_manager/chassis_leveling/front_left/target_velocity",
+            leveling_front_left_target_velocity_, 0.0);
+        register_output(
+            "/dart_manager/chassis_leveling/front_right/target_velocity",
+            leveling_front_right_target_velocity_, 0.0);
+        register_output(
+            "/dart_manager/chassis_leveling/rear_left/target_velocity",
+            leveling_rear_left_target_velocity_, 0.0);
+        register_output(
+            "/dart_manager/chassis_leveling/rear_right/target_velocity",
+            leveling_rear_right_target_velocity_, 0.0);
 
         // chassis leveling
         register_input("/dart/leveling_feet/front_left/velocity", leveling_front_left_velocity_);
@@ -166,6 +174,23 @@ public:
         register_input("/dart/leveling_feet/rear_left/torque", leveling_rear_left_torque_);
         register_input("/dart/leveling_feet/rear_right/velocity", leveling_rear_right_velocity_);
         register_input("/dart/leveling_feet/rear_right/torque", leveling_rear_right_torque_);
+
+        chassis_leveling_stall_velocity_threshold_ =
+            get_parameter("chassis_leveling_stall_velocity_threshold").as_double();
+        chassis_leveling_stall_torque_threshold_ =
+            get_parameter("chassis_leveling_stall_torque_threshold").as_double();
+        chassis_leveling_stall_confirm_ticks_ =
+            static_cast<uint64_t>(get_parameter("chassis_leveling_stall_confirm_ticks").as_int());
+        chassis_leveling_min_run_ticks_ =
+            static_cast<uint64_t>(get_parameter("chassis_leveling_min_run_ticks").as_int());
+        chassis_leveling_angle_allowable_error_ =
+            get_parameter("chassis_leveling_angle_allowable_error").as_double();
+        chassis_leveling_angle_confirm_ticks_ =
+            static_cast<uint64_t>(get_parameter("chassis_leveling_angle_confirm_ticks").as_int());
+        chassis_leveling_contact_timeout_ticks_ =
+            static_cast<uint64_t>(get_parameter("chassis_leveling_contact_timeout_ticks").as_int());
+        chassis_leveling_axis_timeout_ticks_ =
+            static_cast<uint64_t>(get_parameter("chassis_leveling_axis_timeout_ticks").as_int());
 
         // vision
         register_input("/dart_guidance/camera/target_position", current_target_input_, false);
@@ -184,7 +209,6 @@ public:
         manual_angle_max_error_ = get_parameter("angle_manual_scale").as_double();
         manual_force_max_error_ =
             static_cast<int32_t>(std::lround(get_parameter("force_manual_scale").as_double()));
-
         vision_aim_profile_provider_.load_from(*this);
         if (!vision_aim_profile_provider_.valid()) {
             RCLCPP_WARN(
@@ -545,6 +569,11 @@ private:
         *carriage_command_ = rmcs_msgs::DartMechanismCommand::WAIT;
         *carriage_target_velocity_ = 0.0;
         *carriage_target_angle_ = std::numeric_limits<double>::quiet_NaN();
+        *chassis_leveling_phase_ = rmcs_msgs::ChassisLevelingPhase::IDLE;
+        *leveling_front_left_target_velocity_ = 0.0;
+        *leveling_front_right_target_velocity_ = 0.0;
+        *leveling_rear_left_target_velocity_ = 0.0;
+        *leveling_rear_right_target_velocity_ = 0.0;
         *force_error_ = 0;
         *force_max_velocity_override_ = std::numeric_limits<double>::quiet_NaN();
         *force_max_torque_override_ = std::numeric_limits<double>::quiet_NaN();
@@ -624,87 +653,88 @@ private:
 
     ManagerInputContext input_context() {
         return ManagerInputContext{
-            *belt_left_angle_,               //
-            *belt_left_velocity_,            //
-            *belt_left_torque_,              //
-            *belt_right_angle_,              //
-            *belt_right_velocity_,           //
-            *belt_right_torque_,             //
-            *lift_left_velocity_,            //
-            *lift_left_torque_,              //
-            *lift_right_velocity_,           //
-            *lift_right_torque_,             //
-            *force_screw_encoder_angle_,     //
-            *force_screw_velocity_,          //
-            *force_screw_torque_,            //
-            *carriage_origin_angle_,         //
-            *leveling_front_left_velocity_,  //
-            *leveling_front_left_torque_,    //
-            *leveling_front_right_velocity_, //
-            *leveling_front_right_torque_,   //
-            *leveling_rear_left_velocity_,   //
-            *leveling_rear_left_torque_,     //
-            *leveling_rear_right_velocity_,  //
-            *leveling_rear_right_torque_,    //
-            *force_sensor_ch1_,              //
-            *force_sensor_ch2_,              //
-            *current_target_input_,          //
-            *tracking_input_,                //
-            *target_seq_input_,              //
-            *pitch_angle_,                   //
-            *roll_angle_,                    //
-            *remote_left_switch_,            //
-            *remote_right_switch_,           //
-            *remote_rotary_knob_switch_,     //
-            *remote_left_joystick_,          //
-            *remote_right_joystick_,         //
+            *belt_left_angle_,                             //
+            *belt_left_velocity_,                          //
+            *belt_left_torque_,                            //
+            *belt_right_angle_,                            //
+            *belt_right_velocity_,                         //
+            *belt_right_torque_,                           //
+            *lift_left_velocity_,                          //
+            *lift_left_torque_,                            //
+            *lift_right_velocity_,                         //
+            *lift_right_torque_,                           //
+            *force_screw_encoder_angle_,                   //
+            *force_screw_velocity_,                        //
+            *force_screw_torque_,                          //
+            *carriage_origin_angle_,                       //
+            *leveling_front_left_velocity_,                //
+            *leveling_front_left_torque_,                  //
+            *leveling_front_right_velocity_,               //
+            *leveling_front_right_torque_,                 //
+            *leveling_rear_left_velocity_,                 //
+            *leveling_rear_left_torque_,                   //
+            *leveling_rear_right_velocity_,                //
+            *leveling_rear_right_torque_,                  //
+            *current_target_input_,                        //
+            *tracking_input_,                              //
+            *target_seq_input_,                            //
+            *pitch_angle_,                                 //
+            *roll_angle_,                                  //
+            *remote_left_switch_,                          //
+            *remote_right_switch_,                         //
+            *remote_rotary_knob_switch_,                   //
+            *remote_left_joystick_,                        //
+            *remote_right_joystick_,                       //
         };
     }
 
     ManagerOutputContext output_context() {
         return ManagerOutputContext{
-            *belt_command_,                  //
-            *belt_target_velocity_,          //
-            *belt_exit_mode_,                //
-            *belt_max_torque_override_,      //
-            *lift_command_,                  //
-            *lift_target_velocity_,          //
-            *lift_exit_mode_,                //
-            *trigger_command_,               //
-            *limiting_command_,              //
-            *carriage_command_,              //
-            *carriage_target_velocity_,      //
-            *carriage_target_angle_,         //
-            *carriage_origin_angle_,         //
-            *chassis_pitch_leveling_flag_,   //
-            *chassis_roll_leveling_flag_,    //
-            *force_error_,                   //
-            *force_max_velocity_override_,   //
-            *force_max_torque_override_,     //
-            *angle_error_vector_,            //
+            *belt_command_,                                //
+            *belt_target_velocity_,                        //
+            *belt_exit_mode_,                              //
+            *belt_max_torque_override_,                    //
+            *lift_command_,                                //
+            *lift_target_velocity_,                        //
+            *lift_exit_mode_,                              //
+            *trigger_command_,                             //
+            *limiting_command_,                            //
+            *carriage_command_,                            //
+            *carriage_target_velocity_,                    //
+            *carriage_target_angle_,                       //
+            *carriage_origin_angle_,                       //
+            *chassis_leveling_phase_,                      //
+            *leveling_front_left_target_velocity_,           //
+            *leveling_front_right_target_velocity_,          //
+            *leveling_rear_left_target_velocity_,            //
+            *leveling_rear_right_target_velocity_,           //
+            *force_error_,                                 //
+            *force_max_velocity_override_,                 //
+            *force_max_torque_override_,                   //
+            *angle_error_vector_,                          //
         };
     }
 
     ManagerSettings settings() const {
         return ManagerSettings{
-            belt_down_velocity_,             //
-            belt_down_travel_angle_,         //
-            belt_up_velocity_,               //
-            belt_up_travel_angle_,           //
+            belt_down_velocity_,                           //
+            belt_down_travel_angle_,                       //
+            belt_up_velocity_,                             //
+            belt_up_travel_angle_,                         //
             belt_interference_relief_travel_angle_,
-            belt_init_velocity_,             //
-            belt_stall_velocity_threshold_,  //
-            belt_stall_torque_threshold_,    //
-            belt_stall_confirm_ticks_,       //
+            belt_init_velocity_,                           //
+            belt_stall_velocity_threshold_,                //
+            belt_stall_torque_threshold_,                  //
+            belt_stall_confirm_ticks_,                     //
             belt_init_stall_velocity_threshold_,
             belt_init_stall_torque_threshold_,
             belt_init_stall_confirm_ticks_,
             belt_init_max_torque_,
-            manual_belt_velocity_,           //
-            lift_velocity_,                  //
-            lift_stall_velocity_threshold_,  //
-            lift_stall_torque_threshold_,    //
-            lift_stall_confirm_ticks_,       //
+            manual_belt_velocity_,                         //
+            lift_velocity_,                                //
+            lift_stall_velocity_threshold_,                //
+            lift_stall_torque_threshold_,                  //
+            lift_stall_confirm_ticks_,                     //
             carriage_down_velocity_,
             carriage_travel_angle_,
             carriage_up_velocity_,
@@ -723,9 +753,17 @@ private:
             carriage_angle_allowable_error_,
             carriage_min_run_ticks_,
             carriage_timeout_ticks_,
-            limiting_fill_ticks_,            //
-            manual_angle_max_error_,         //
-            manual_force_max_error_,         //
+            limiting_fill_ticks_,                          //
+            chassis_leveling_stall_velocity_threshold_,
+            chassis_leveling_stall_torque_threshold_,
+            chassis_leveling_stall_confirm_ticks_,
+            chassis_leveling_min_run_ticks_,
+            chassis_leveling_angle_allowable_error_,
+            chassis_leveling_angle_confirm_ticks_,
+            chassis_leveling_contact_timeout_ticks_,
+            chassis_leveling_axis_timeout_ticks_,
+            manual_angle_max_error_,                       //
+            manual_force_max_error_,                       //
         };
     }
 
@@ -813,8 +851,11 @@ private:
     uint64_t limiting_fill_ticks_;
 
     // chassis leveling
-    OutputInterface<bool> chassis_pitch_leveling_flag_;
-    OutputInterface<bool> chassis_roll_leveling_flag_;
+    OutputInterface<rmcs_msgs::ChassisLevelingPhase> chassis_leveling_phase_;
+    OutputInterface<double> leveling_front_left_target_velocity_;
+    OutputInterface<double> leveling_front_right_target_velocity_;
+    OutputInterface<double> leveling_rear_left_target_velocity_;
+    OutputInterface<double> leveling_rear_right_target_velocity_;
     InputInterface<double> leveling_front_left_velocity_;
     InputInterface<double> leveling_front_left_torque_;
     InputInterface<double> leveling_front_right_velocity_;
@@ -823,15 +864,20 @@ private:
     InputInterface<double> leveling_rear_left_torque_;
     InputInterface<double> leveling_rear_right_velocity_;
     InputInterface<double> leveling_rear_right_torque_;
+    double chassis_leveling_stall_velocity_threshold_;
+    double chassis_leveling_stall_torque_threshold_;
+    uint64_t chassis_leveling_stall_confirm_ticks_;
+    uint64_t chassis_leveling_min_run_ticks_;
+    double chassis_leveling_angle_allowable_error_;
+    uint64_t chassis_leveling_angle_confirm_ticks_;
+    uint64_t chassis_leveling_contact_timeout_ticks_;
+    uint64_t chassis_leveling_axis_timeout_ticks_;
 
     // yaw pitch force
     OutputInterface<int32_t> force_error_;
     OutputInterface<double> force_max_velocity_override_;
     OutputInterface<double> force_max_torque_override_;
     OutputInterface<Eigen::Vector2d> angle_error_vector_;
-
-    InputInterface<int32_t> force_sensor_ch1_;
-    InputInterface<int32_t> force_sensor_ch2_;
 
     InputInterface<cv::Point2i> current_target_input_;
     InputInterface<bool> tracking_input_;
