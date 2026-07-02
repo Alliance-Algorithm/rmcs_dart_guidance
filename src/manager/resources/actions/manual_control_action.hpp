@@ -27,29 +27,29 @@ namespace rmcs_dart_guidance::manager {
 class ManualControlAction : public IAction {
 public:
     ManualControlAction(
-        std::string name,                                   //
-        const rmcs_msgs::Switch& remote_left_switch,        //
-        const rmcs_msgs::Switch& remote_right_switch,       //
-        const rmcs_msgs::Switch& remote_rotary_knob_switch, //
-        const Eigen::Vector2d& remote_left_joystick,       //
-        const Eigen::Vector2d& remote_right_joystick,      //
-        rmcs_msgs::DartMechanismCommand& belt_command,      //
-        double& belt_target_velocity,                       //
-        rmcs_msgs::ExitMode& belt_exit_mode,                //
-        rmcs_msgs::DartMechanismCommand& lift_command,      //
-        double& lift_target_velocity,                       //
-        rmcs_msgs::ExitMode& lift_exit_mode,                //
-        rmcs_msgs::DartServoCommand& trigger_command,       //
-        int32_t& force_error,                               //
-        Eigen::Vector2d& angle_error_vector,                 //
-        double angle_max_error,                              //
-        int32_t force_max_error,                             //
-        double belt_max_velocity,                            //
-        double lift_target_velocity_setting,                 //
-        double& leveling_front_left_target_velocity,         //
-        double& leveling_front_right_target_velocity,        //
-        double& leveling_rear_left_target_velocity,          //
-        double& leveling_rear_right_target_velocity,         //
+        std::string name,                                       //
+        const rmcs_msgs::Switch& remote_left_switch,            //
+        const rmcs_msgs::Switch& remote_right_switch,           //
+        const rmcs_msgs::Switch& remote_rotary_knob_switch,     //
+        const Eigen::Vector2d& remote_left_joystick,            //
+        const Eigen::Vector2d& remote_right_joystick,           //
+        rmcs_msgs::DartMechanismCommand& belt_command,          //
+        double& belt_target_velocity,                           //
+        rmcs_msgs::ExitMode& belt_exit_mode,                    //
+        rmcs_msgs::DartMechanismCommand& lift_command,          //
+        double& lift_target_velocity,                           //
+        rmcs_msgs::ExitMode& lift_exit_mode,                    //
+        rmcs_msgs::DartServoCommand& trigger_command,           //
+        int32_t& force_error,                                   //
+        Eigen::Vector2d& angle_error_vector,                    //
+        double angle_max_error,                                 //
+        int32_t force_max_error,                                //
+        double belt_max_velocity,                               //
+        double lift_target_velocity_setting,                    //
+        double& leveling_front_left_target_velocity,            //
+        double& leveling_front_right_target_velocity,           //
+        double& leveling_rear_left_target_velocity,             //
+        double& leveling_rear_right_target_velocity,            //
         rmcs_msgs::ChassisLevelingPhase& chassis_leveling_phase //
         )
         : IAction(std::move(name))
@@ -67,14 +67,11 @@ public:
         , trigger_command_output_interface_(trigger_command)
         , force_error_interface_(force_error)
         , angle_error_vector_output_interface_(angle_error_vector)
-        , leveling_front_left_target_velocity_output_interface_(
-              leveling_front_left_target_velocity)
+        , leveling_front_left_target_velocity_output_interface_(leveling_front_left_target_velocity)
         , leveling_front_right_target_velocity_output_interface_(
               leveling_front_right_target_velocity)
-        , leveling_rear_left_target_velocity_output_interface_(
-              leveling_rear_left_target_velocity)
-        , leveling_rear_right_target_velocity_output_interface_(
-              leveling_rear_right_target_velocity)
+        , leveling_rear_left_target_velocity_output_interface_(leveling_rear_left_target_velocity)
+        , leveling_rear_right_target_velocity_output_interface_(leveling_rear_right_target_velocity)
         , chassis_leveling_phase_output_interface_(chassis_leveling_phase)
         , angle_max_error_(angle_max_error)
         , force_max_error_(force_max_error)
@@ -126,6 +123,7 @@ public:
             const double raw_force_error = -remote_right_joystick_.x() * force_max_error_;
             force_error_interface_ = clamp_to_int32(std::lround(raw_force_error));
         } else if (remote_right_switch_ == rmcs_msgs::Switch::DOWN) {
+            chassis_leveling_phase_output_interface_ = rmcs_msgs::ChassisLevelingPhase::MANUAL;
             apply_leveling_target_velocity_command();
         }
 
@@ -138,6 +136,7 @@ public:
         reset_leveling_target_velocity_output();
         reset_chassis_leveling_phase_output();
         trigger_command_output_interface_ = rmcs_msgs::DartServoCommand::WAIT;
+        chassis_leveling_phase_output_interface_ = rmcs_msgs::ChassisLevelingPhase::WAIT;
         force_error_interface_ = 0;
         angle_error_vector_output_interface_ = Eigen::Vector2d::Zero();
     }
@@ -163,7 +162,7 @@ private:
     }
 
     void reset_chassis_leveling_phase_output() {
-        chassis_leveling_phase_output_interface_ = rmcs_msgs::ChassisLevelingPhase::IDLE;
+        chassis_leveling_phase_output_interface_ = rmcs_msgs::ChassisLevelingPhase::WAIT;
     }
 
     void apply_trigger_command() {
@@ -195,9 +194,7 @@ private:
     }
 
     void apply_leveling_target_velocity_command() {
-        // Match other manual mechanisms: publish the joystick-scaled velocity setpoint.
-        leveling_front_left_target_velocity_output_interface_ =
-            remote_left_joystick_.y() * 10.0;
+        leveling_front_left_target_velocity_output_interface_ = remote_left_joystick_.y() * 10.0;
         leveling_front_right_target_velocity_output_interface_ = remote_left_joystick_.x() * 10.0;
         leveling_rear_left_target_velocity_output_interface_ = remote_right_joystick_.y() * 10.0;
         leveling_rear_right_target_velocity_output_interface_ = remote_right_joystick_.x() * 10.0;

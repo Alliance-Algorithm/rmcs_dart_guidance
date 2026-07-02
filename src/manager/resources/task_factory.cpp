@@ -31,16 +31,9 @@ std::shared_ptr<Task> make_carriage_calibration_task(
     return std::make_shared<CarriageCalibrationTask>(input, output, settings, runtime_state);
 }
 
-std::shared_ptr<Task> make_chassis_initial_calibration_task(
-    const ManagerInputContext& input, ManagerOutputContext& output,
-    const ManagerSettings& settings) {
-    return std::make_shared<LegacyChassisLevelingTask>(input, output, settings);
-}
-
-std::shared_ptr<Task> make_chassis_leveling_adjust_task(
-    const ManagerInputContext& input, ManagerOutputContext& output,
-    const ManagerSettings& settings) {
-    return std::make_shared<ThreeStageChassisLevelingTask>(input, output, settings);
+std::shared_ptr<Task>
+    make_chassis_leveling_task(const ManagerInputContext& input, ManagerOutputContext& output) {
+    return std::make_shared<ChassisLevelingTask>(input, output);
 }
 
 std::shared_ptr<Task> make_carriage_travel_task(
@@ -102,15 +95,8 @@ std::shared_ptr<Task> make_task(
         return make_carriage_travel_task(input, output, settings);
     }
 
-    if (cmd == "chassis_leveling_legacy" || cmd == "chassis-leveling-legacy"
-        || cmd == "legacy_chassis_leveling" || cmd == "legacy-chassis-leveling") {
-        return std::make_shared<LegacyChassisLevelingTask>(input, output, settings);
-    }
-
-    if (cmd == "chassis_leveling" || cmd == "chassis-leveling"
-        || cmd == "chassis_leveling_three_stage" || cmd == "chassis-leveling-three-stage"
-        || cmd == "chassis_leveling_staged" || cmd == "chassis-leveling-staged") {
-        return std::make_shared<ThreeStageChassisLevelingTask>(input, output, settings);
+    if (cmd == "chassis_leveling" || cmd == "chassis-leveling") {
+        return std::make_shared<ChassisLevelingTask>(input, output);
     }
 
     return nullptr;

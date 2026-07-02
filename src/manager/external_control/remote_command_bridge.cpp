@@ -45,15 +45,8 @@ public:
             });
 
         chassis_leveling_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
-            "/chassis_leveling/init", rclcpp::QoS{10},
-            [this](std_msgs::msg::Int32::UniquePtr&& msg) {
+            "/chassis/leveling", rclcpp::QoS{10}, [this](std_msgs::msg::Int32::UniquePtr&& msg) {
                 chassis_leveling_calibrate_subscription_callback(std::move(msg));
-            });
-
-        chassis_leveling_adjust_subscription_ = create_subscription<std_msgs::msg::Int32>(
-            "/chassis_leveling/adjust", rclcpp::QoS{10},
-            [this](std_msgs::msg::Int32::UniquePtr&& msg) {
-                chassis_leveling_adjust_subscription_callback(std::move(msg));
             });
 
         vision_enable_ = get_parameter("vision_enable").as_bool();
@@ -81,14 +74,9 @@ public:
             carriage_init_receive_ = false;
         }
 
-        if (chassis_leveling_init_receive_) {
-            emit_command("chassis_leveling_init");
-            chassis_leveling_init_receive_ = false;
-        }
-
-        if (chassis_leveling_adjust_receive_) {
-            emit_command("chassis_leveling_adjust");
-            chassis_leveling_adjust_receive_ = false;
+        if (chassis_leveling_receive_) {
+            emit_command("chassis_leveling");
+            chassis_leveling_receive_ = false;
         }
 
         const auto left = *switch_left_;
@@ -154,7 +142,6 @@ private:
             return;
         }
         carriage_init_receive_ = true;
-        // emit_command("carriage_init");
         RCLCPP_INFO(logger_, "[RemoteCommandBridge] /carriage_position/calibrate -> carriage_init");
     }
 
@@ -162,21 +149,9 @@ private:
         if (msg == nullptr || msg->data == 0) {
             return;
         }
-        chassis_leveling_init_receive_ = true;
-        // emit_command("chassis_leveling_init");
+        chassis_leveling_receive_ = true;
         RCLCPP_INFO(
-            logger_, "[RemoteCommandBridge] /carriage_position/calibrate -> chassis_leveling_init");
-    }
-
-    void chassis_leveling_adjust_subscription_callback(std_msgs::msg::Int32::UniquePtr msg) {
-        if (msg == nullptr || msg->data == 0) {
-            return;
-        }
-        chassis_leveling_adjust_receive_ = true;
-        // emit_command("chassis_leveling_adjust");
-        RCLCPP_INFO(
-            logger_,
-            "[RemoteCommandBridge] /carriage_position/calibrate -> chassis_leveling_adjust");
+            logger_, "[RemoteCommandBridge] /carriage_position/calibrate -> chassis_leveling");
     }
 
     bool detect_enter_manual_control(rmcs_msgs::Switch current_left) const {
@@ -215,8 +190,7 @@ private:
 
     bool vision_enable_;
     std::atomic<bool> carriage_init_receive_;
-    std::atomic<bool> chassis_leveling_init_receive_;
-    std::atomic<bool> chassis_leveling_adjust_receive_;
+    std::atomic<bool> chassis_leveling_receive_;
 
     rmcs_msgs::Switch prev_left_{rmcs_msgs::Switch::UNKNOWN};
     rmcs_msgs::Switch prev_right_{rmcs_msgs::Switch::UNKNOWN};

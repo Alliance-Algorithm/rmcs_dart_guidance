@@ -67,6 +67,7 @@ struct ManagerInputContext {
     const double& leveling_rear_left_torque;
     const double& leveling_rear_right_velocity;
     const double& leveling_rear_right_torque;
+    const double& leveling_pitch_angle;
 
     // yaw pitch force
 
