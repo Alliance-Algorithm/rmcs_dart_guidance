@@ -63,8 +63,7 @@ public:
         }
         if (!rotary_knob_switch_.ready()) {
             rotary_knob_switch_.make_and_bind_directly(rmcs_msgs::Switch::UNKNOWN);
-            RCLCPP_WARN(
-                logger_, "Failed to fetch \"/remote/rotary_knob_switch\". Set to UNKNOWN.");
+            RCLCPP_WARN(logger_, "Failed to fetch \"/remote/rotary_knob_switch\". Set to UNKNOWN.");
         }
         if (!game_stage_.ready()) {
             game_stage_.make_and_bind_directly(rmcs_msgs::GameStage::UNKNOWN);
@@ -72,8 +71,7 @@ public:
         }
         if (!dart_remaining_time_.ready()) {
             dart_remaining_time_.make_and_bind_directly(uint8_t{0});
-            RCLCPP_WARN(
-                logger_, "Failed to fetch \"/referee/dart/launch_remain_time\". Set to 0.");
+            RCLCPP_WARN(logger_, "Failed to fetch \"/referee/dart/launch_remain_time\". Set to 0.");
         }
     }
 
@@ -93,13 +91,14 @@ public:
         const auto game_stage = *game_stage_;
         const auto dart_remaining_time = *dart_remaining_time_;
 
-        if (const auto command = detect_station_open_command(
-                left, right, knob, game_stage, dart_remaining_time);
+        if (const auto command =
+                detect_station_open_command(left, right, knob, game_stage, dart_remaining_time);
             !command.empty()) {
             emit_command(command);
             chambered_ = false;
             update_previous_inputs(left, right, knob, dart_remaining_time);
-            RCLCPP_INFO(logger_, "[RemoteCommandBridge] station open trigger -> %s", command.c_str());
+            RCLCPP_INFO(
+                logger_, "[RemoteCommandBridge] station open trigger -> %s", command.c_str());
             return;
         }
 
@@ -191,16 +190,14 @@ private:
         rmcs_msgs::Switch current_left, rmcs_msgs::Switch current_right,
         rmcs_msgs::Switch current_knob, rmcs_msgs::GameStage current_game_stage,
         uint8_t current_dart_remaining_time) {
-        if (current_game_stage == rmcs_msgs::GameStage::STARTED
-            && prev_dart_remaining_time_ != 29 && current_dart_remaining_time == 29) {
+        if (current_game_stage == rmcs_msgs::GameStage::STARTED && prev_dart_remaining_time_ != 29
+            && current_dart_remaining_time == 29) {
             return next_station_open_command();
         }
 
         if (current_game_stage != rmcs_msgs::GameStage::STARTED
-            && current_left == rmcs_msgs::Switch::DOWN
-            && current_right == rmcs_msgs::Switch::UP
-            && prev_knob_ != rmcs_msgs::Switch::UP
-            && current_knob == rmcs_msgs::Switch::UP) {
+            && current_left == rmcs_msgs::Switch::DOWN && current_right == rmcs_msgs::Switch::UP
+            && prev_knob_ != rmcs_msgs::Switch::UP && current_knob == rmcs_msgs::Switch::UP) {
             return next_station_open_command();
         }
 
@@ -209,12 +206,8 @@ private:
 
     std::string next_station_open_command() {
         switch (station_open_trigger_count_) {
-        case 0:
-            ++station_open_trigger_count_;
-            return "first_dart_station_open_task";
-        case 1:
-            ++station_open_trigger_count_;
-            return "second_dart_station_open_task";
+        case 0: ++station_open_trigger_count_; return "first_dart_station_open_task";
+        case 1: ++station_open_trigger_count_; return "second_dart_station_open_task";
         default: return {};
         }
     }

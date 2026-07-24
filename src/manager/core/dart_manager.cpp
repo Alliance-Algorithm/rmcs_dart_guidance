@@ -1,5 +1,10 @@
+#include "manager/core/runtime/manager_types.hpp"
 #include "manager/core/runtime/task.hpp"
-#include "manager/manager_types.hpp"
+#include "manager/core/task/task_factory.hpp"
+#include "manager/resources/belt_resource.hpp"
+#include "manager/resources/filling_resource.hpp"
+#include "manager/resources/mechanism_resources.hpp"
+#include "manager/resources/trigger_resource.hpp"
 
 #include <chrono>
 #include <deque>
@@ -15,9 +20,6 @@
 
 namespace rmcs_dart_guidance::manager {
 
-// Skeleton DartManager after resource cleanup.
-// Task/action resources and mechanism IO will be reintroduced in the phase-1 framework.
-
 class DartManager
     : public rmcs_executor::Component
     , public rclcpp::Node {
@@ -26,7 +28,13 @@ public:
         : Node(
               get_component_name(),
               rclcpp::NodeOptions{}.automatically_declare_parameters_from_overrides(true))
-        , logger_(get_logger()) {
+        , logger_(get_logger())
+        , command_component_(
+              create_partner_component<CommandComponent>(get_component_name() + "_command"))
+        , belt_resource_(*this, *command_component_, "/dart/belt")
+        , trigger_resource_(*this, *command_component_, "/dart/trigger")
+        , filling_resource_(*this, *command_component_, "/dart/filling")
+        , resources_{belt_resource_, trigger_resource_, filling_resource_} {
 
         register_input("/dart/manager/command", command_input_, false);
         register_output("/dart/manager/fire_count", fire_count_output_, uint32_t{0});
@@ -45,11 +53,18 @@ public:
 
         reset_fire_count();
         sync_debug_outputs();
-        RCLCPP_INFO(logger_, "[DartManager] skeleton initialized (resources cleared)");
+        RCLCPP_INFO(logger_, "[DartManager] initialized (resource-owned mechanism IO)");
     }
 
     void before_updating() override {
-        bind_optional_command_inputs();
+        belt_resource_.bind_optional(logger_);
+        trigger_resource_.bind_optional(logger_);
+        filling_resource_.bind_optional(logger_);
+
+        if (!command_input_.ready()) {
+            command_input_.make_and_bind_directly(std::string{});
+            RCLCPP_WARN(logger_, "Failed to fetch \"/dart/manager/command\". Set to empty string.");
+        }
         sync_debug_outputs();
     }
 
@@ -93,13 +108,6 @@ private:
         bool first_tick_of_task{true};
     };
 
-    void bind_optional_command_inputs() {
-        if (!command_input_.ready()) {
-            command_input_.make_and_bind_directly(std::string{});
-            RCLCPP_WARN(logger_, "Failed to fetch \"/dart/manager/command\". Set to empty string.");
-        }
-    }
-
     void poll_commands() {
         const std::string cmd = command_input_.ready() ? *command_input_ : std::string{};
         if (!cmd.empty()) {
@@ -124,15 +132,24 @@ private:
             return;
         }
 
-        RCLCPP_WARN(
-            logger_,
-            "[DartManager] command '%s' ignored: task resources not reimplemented yet",
-            cmd.c_str());
+        auto task = make_task(cmd, resources_, runtime_state_);
+        RCLCPP_INFO(logger_, "[DartManager] received command: '%s'", cmd.c_str());
+        if (task) {
+            submit_task(std::move(task));
+        } else {
+            RCLCPP_WARN(logger_, "[DartManager] unknown command: '%s'", cmd.c_str());
+        }
     }
 
     void cancel_all() {
+        const std::string task_name =
+            active_task_name().empty() ? std::string{"cancel"} : active_task_name();
         cancel_task_state(task_state_, ActionCancelReason::EXTERNAL_CANCEL);
-        transition_to(ManagerLifecycleState::IDLE);
+        abort_all();
+        record_last_error(task_name, "cancel", ActionFailureReason::EXTERNAL_CANCEL);
+        transition_to(ManagerLifecycleState::ERROR);
+        RCLCPP_WARN(
+            logger_, "[DartManager] cancel -> ABORT held, lifecycle=ERROR (recover to idle)");
     }
 
     void recover() {
@@ -142,6 +159,20 @@ private:
             transition_to(ManagerLifecycleState::IDLE);
         }
         reset_fire_count();
+        idle_all();
+    }
+
+    // Hold ABORT on all mechanisms until recover() writes IDLE.
+    void abort_all() {
+        belt_resource_.abort();
+        trigger_resource_.abort();
+        filling_resource_.abort();
+    }
+
+    void idle_all() {
+        belt_resource_.idle();
+        trigger_resource_.idle();
+        filling_resource_.idle();
     }
 
     void submit_task(std::shared_ptr<Task> task) {
@@ -214,6 +245,7 @@ private:
         }
         task_state_.current_task->finish_failure();
         reset_task_state(task_state_);
+        abort_all();
         transition_to(ManagerLifecycleState::ERROR);
     }
 
@@ -277,7 +309,20 @@ private:
 
     void reset_fire_count() { runtime_state_.fire_count = 0; }
 
+    // Partner carries mechanism command outputs (breaks cycles like hardware boards).
+    // Nested like OmniInfantry::InfantryCommand; update is empty (commands written by main update).
+    class CommandComponent : public rmcs_executor::Component {
+    public:
+        void update() override {}
+    };
+
     rclcpp::Logger logger_;
+
+    std::shared_ptr<CommandComponent> command_component_;
+    BeltResource belt_resource_;
+    TriggerResource trigger_resource_;
+    FillingResource filling_resource_;
+    MechanismResources resources_;
 
     InputInterface<std::string> command_input_;
     OutputInterface<uint32_t> fire_count_output_;

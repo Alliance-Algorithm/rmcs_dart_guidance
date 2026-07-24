@@ -87,6 +87,8 @@ public:
 
     void on_exit() override { cancel_active_child(ActionCancelReason::NORMAL_COMPLETION); }
 
+    void on_failure() override { cancel_active_child(ActionCancelReason::DEPENDENCY_FAILURE); }
+
     void on_cancel(ActionCancelReason reason) override { cancel_active_child(reason); }
 
     std::size_t size() const { return actions_.size(); }

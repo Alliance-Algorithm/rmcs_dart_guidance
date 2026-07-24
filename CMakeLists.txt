@@ -33,6 +33,7 @@ find_package(hikcamera REQUIRED)
 set(RMCS_MSGS_SOURCE_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/../rmcs_msgs/include")
 
 include_directories(
+  ${PROJECT_SOURCE_DIR}/include/
   ${PROJECT_SOURCE_DIR}/src/
   ${PROJECT_SOURCE_DIR}/test/
   ${RMCS_MSGS_SOURCE_INCLUDE_DIR}
@@ -101,8 +102,16 @@ install(
     lib/
 )
 
+install(
+  DIRECTORY include/
+  DESTINATION include
+)
+
 pluginlib_export_plugin_description_file(
   rmcs_executor plugins.xml
 )
+
+ament_export_include_directories(include)
+ament_export_dependencies(rclcpp rmcs_executor rmcs_msgs)
 
 ament_package()

@@ -86,8 +86,11 @@ public:
     // 每帧调用，返回执行状态
     virtual ActionStatus update() = 0;
 
-    // 退出时调用（无论是 SUCCESS / FAILURE 还是被外部 cancel），可在此做清理
+    // 正常成功退出时调用，可在此做清理（如写 IDLE）
     virtual void on_exit() {}
+
+    // 失败退出时调用；默认与 on_exit 一致，机构动作可覆写为 ABORT 保持
+    virtual void on_failure() { on_exit(); }
 
     // 被外部取消时调用，默认与 on_exit 一致，容器动作可覆写以传播取消原因
     virtual void on_cancel(ActionCancelReason reason) {
@@ -158,7 +161,7 @@ public:
             return;
 
         finished_ = true;
-        on_exit();
+        on_failure();
     }
 
     // 强制退出（被取消时使用）

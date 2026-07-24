@@ -6,7 +6,6 @@
 #include <hikcamera/capturer.hpp>
 #include <memory>
 #include <mutex>
-#include <tuple>
 #include <opencv2/core/hal/interface.h>
 #include <opencv2/core/mat.hpp>
 #include <opencv2/core/types.hpp>
@@ -19,6 +18,7 @@
 #include <rclcpp/node_options.hpp>
 #include <rmcs_executor/component.hpp>
 #include <thread>
+#include <tuple>
 
 namespace rmcs_dart_guidance {
 

@@ -130,6 +130,8 @@ public:
 
     void on_exit() override { cancel_running(ActionCancelReason::NORMAL_COMPLETION); }
 
+    void on_failure() override { cancel_running(ActionCancelReason::DEPENDENCY_FAILURE); }
+
     void on_cancel(ActionCancelReason reason) override { cancel_running(reason); }
 
 private:
