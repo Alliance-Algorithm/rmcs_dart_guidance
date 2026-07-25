@@ -9,10 +9,10 @@ enum class BeltCommand : uint8_t {
     ABORT = 1,
     DOWN_SLOW = 2,
     DOWN_FAST = 3,
-    DOWN_HOLD = 4,
+    DOWN_SLOW_PART = 4,
     UP_SOFT = 5,
-    UP_HARD = 6,
-    UP_STALL = 7,
+    UP_SOFT_PART = 6,
+    UP_HARD = 7,
     BRAKE = 8,
 };
 
@@ -26,10 +26,10 @@ inline const char* to_string(BeltCommand cmd) {
     case BeltCommand::ABORT: return "ABORT";
     case BeltCommand::DOWN_SLOW: return "DOWN_SLOW";
     case BeltCommand::DOWN_FAST: return "DOWN_FAST";
-    case BeltCommand::DOWN_HOLD: return "DOWN_HOLD";
+    case BeltCommand::DOWN_SLOW_PART: return "DOWN_SLOW_PART";
     case BeltCommand::UP_SOFT: return "UP_SOFT";
+    case BeltCommand::UP_SOFT_PART: return "UP_SOFT_PART";
     case BeltCommand::UP_HARD: return "UP_HARD";
-    case BeltCommand::UP_STALL: return "UP_STALL";
     case BeltCommand::BRAKE: return "BRAKE";
     }
     return "UNKNOWN";

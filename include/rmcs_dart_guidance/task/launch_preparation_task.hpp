@@ -1,10 +1,10 @@
 #pragma once
 
+#include "manager/runtime/manager_types.hpp"
+#include "manager/runtime/task.hpp"
 #include <rmcs_dart_guidance/action/belt_command_action.hpp>
 #include <rmcs_dart_guidance/action/filling_command_action.hpp>
 #include <rmcs_dart_guidance/action/trigger_command_action.hpp>
-#include "manager/runtime/manager_types.hpp"
-#include "manager/runtime/task.hpp"
 #include <rmcs_dart_guidance/resource/mechanism_resources.hpp>
 
 #include <memory>
@@ -23,13 +23,16 @@ public:
         using rmcs_dart_guidance::msg::FillingCommand;
         using rmcs_dart_guidance::msg::TriggerCommand;
 
-        const auto first_down =
+        const auto belt_command_down =
             runtime_state.fire_count == 0 ? BeltCommand::DOWN_SLOW : BeltCommand::DOWN_FAST;
 
-        then(std::make_shared<BeltCommandAction>("belt_down_1", resources.belt, first_down, 200));
         then(
             std::make_shared<BeltCommandAction>(
-                "belt_down_hold", resources.belt, BeltCommand::DOWN_HOLD, 200));
+                "belt_down_1", resources.belt, belt_command_down, 200));
+
+        then(
+            std::make_shared<BeltCommandAction>(
+                "belt_down_hold", resources.belt, BeltCommand::STOP, 200));
         then(
             std::make_shared<TriggerCommandAction>(
                 "trigger_lock", resources.trigger, TriggerCommand::SERVO_LOCK, 200));

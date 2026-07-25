@@ -1,9 +1,9 @@
 #pragma once
 
+#include "manager/runtime/task.hpp"
 #include <rmcs_dart_guidance/action/belt_command_action.hpp>
 #include <rmcs_dart_guidance/action/filling_command_action.hpp>
 #include <rmcs_dart_guidance/action/trigger_command_action.hpp>
-#include "manager/runtime/task.hpp"
 #include <rmcs_dart_guidance/resource/mechanism_resources.hpp>
 
 #include <memory>
@@ -27,7 +27,7 @@ public:
                 "belt_down_fast", resources.belt, BeltCommand::DOWN_FAST, 200));
         then(
             std::make_shared<BeltCommandAction>(
-                "belt_down_hold", resources.belt, BeltCommand::DOWN_HOLD, 200));
+                "belt_down_hold", resources.belt, BeltCommand::STOP, 200));
         then(
             std::make_shared<TriggerCommandAction>(
                 "trigger_free", resources.trigger, TriggerCommand::SERVO_FREE, 200));
