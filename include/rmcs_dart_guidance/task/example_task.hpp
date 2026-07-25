@@ -1,9 +1,9 @@
 #pragma once
 
-#include "manager/core/action/delay_action.hpp"
-#include "manager/core/action/example_command_action.hpp"
-#include "manager/core/runtime/task.hpp"
-#include "manager/resources/example_resource.hpp"
+#include <rmcs_dart_guidance/action/delay_action.hpp>
+#include <rmcs_dart_guidance/action/example_command_action.hpp>
+#include "manager/runtime/task.hpp"
+#include <rmcs_dart_guidance/resource/example_resource.hpp>
 
 #include <memory>
 

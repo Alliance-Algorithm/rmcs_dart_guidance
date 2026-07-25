@@ -1,7 +1,7 @@
-#include "manager/core/runtime/manager_types.hpp"
-#include "manager/core/runtime/task.hpp"
-#include "manager/core/task/task_factory.hpp"
-#include "manager/resources/example_resource.hpp"
+#include "manager/runtime/manager_types.hpp"
+#include "manager/runtime/task.hpp"
+#include "manager/runtime/task_factory.hpp"
+#include <rmcs_dart_guidance/resource/example_resource.hpp>
 
 #include <chrono>
 #include <deque>

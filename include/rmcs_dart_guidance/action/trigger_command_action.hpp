@@ -1,7 +1,7 @@
 #pragma once
 
-#include "manager/core/action/mechanism_command_action.hpp"
-#include "manager/resources/trigger_resource.hpp"
+#include <rmcs_dart_guidance/action/mechanism_command_action.hpp>
+#include <rmcs_dart_guidance/resource/trigger_resource.hpp>
 
 #include <limits>
 #include <string>

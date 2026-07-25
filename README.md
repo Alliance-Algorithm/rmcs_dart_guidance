@@ -9,18 +9,19 @@ RMCS 框架插件组件，负责：
 ## 当前目录结构
 
 ```text
+include/rmcs_dart_guidance/
+├── msg/          # 命令/状态枚举
+├── resource/     # 机构 IO 包装
+├── action/       # 具体动作
+└── task/         # 业务任务
+
 src/manager/
-├── core/
-│   ├── components/   # 组件入口：DartManager / RemoteCommandBridge
-│   └── runtime/      # 通用运行时：Action / ActionSequence / ActionSet / Task
-└── resources/
-    ├── actions/      # 具体机械动作
-    ├── tasks/        # 由多个 action 组装出的业务 task
-    └── task_factory.*# 命令到 task 的统一装配入口
+├── runtime/                  # Action 运行时 + task_factory
+├── dart_manager.cpp          # 组件入口
+└── remote_command_bridge.cpp # 命令桥接
 ```
 
-重构后的依赖方向为：`core/components -> resources/task_factory -> resources/tasks|actions -> core/runtime`。
-这样 `manager` 的核心调度逻辑与自定义动作资源分离，新增动作/任务时不需要再把实现塞进组件入口文件。
+依赖方向：`dart_manager -> runtime/task_factory -> task/action -> resource -> msg`。
 
 ## 状态机转换图
 

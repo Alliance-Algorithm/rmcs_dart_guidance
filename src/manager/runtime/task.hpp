@@ -1,6 +1,6 @@
 #pragma once
 
-#include "manager/core/runtime/action_sequence.hpp"
+#include "manager/runtime/action_sequence.hpp"
 
 #include <string>
 

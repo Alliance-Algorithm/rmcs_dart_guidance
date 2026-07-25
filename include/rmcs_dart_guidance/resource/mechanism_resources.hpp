@@ -1,8 +1,8 @@
 #pragma once
 
-#include "manager/resources/belt_resource.hpp"
-#include "manager/resources/filling_resource.hpp"
-#include "manager/resources/trigger_resource.hpp"
+#include <rmcs_dart_guidance/resource/belt_resource.hpp>
+#include <rmcs_dart_guidance/resource/filling_resource.hpp>
+#include <rmcs_dart_guidance/resource/trigger_resource.hpp>
 
 namespace rmcs_dart_guidance::manager {
 

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "manager/core/action/mechanism_command_action.hpp"
-#include "manager/resources/filling_resource.hpp"
+#include <rmcs_dart_guidance/action/mechanism_command_action.hpp>
+#include <rmcs_dart_guidance/resource/filling_resource.hpp>
 
 #include <rmcs_dart_guidance/msg/filling_command.hpp>
 

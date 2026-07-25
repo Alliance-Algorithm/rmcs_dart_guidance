@@ -1,6 +1,6 @@
 #pragma once
 
-#include "manager/core/runtime/action.hpp"
+#include "manager/runtime/action.hpp"
 
 #include <cassert>
 #include <memory>

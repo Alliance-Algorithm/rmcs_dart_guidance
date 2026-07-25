@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-#include "manager/core/runtime/action.hpp"
+#include "manager/runtime/action.hpp"
 
 namespace rmcs_dart_guidance::manager {
 

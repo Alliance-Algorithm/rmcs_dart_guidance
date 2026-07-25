@@ -1,7 +1,7 @@
 #pragma once
 
-#include "manager/core/action/mechanism_command_action.hpp"
-#include "manager/resources/belt_resource.hpp"
+#include <rmcs_dart_guidance/action/mechanism_command_action.hpp>
+#include <rmcs_dart_guidance/resource/belt_resource.hpp>
 
 #include <rmcs_dart_guidance/msg/belt_command.hpp>
 

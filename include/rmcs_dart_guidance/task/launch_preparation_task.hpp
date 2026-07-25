@@ -1,11 +1,11 @@
 #pragma once
 
-#include "manager/core/action/belt_command_action.hpp"
-#include "manager/core/action/filling_command_action.hpp"
-#include "manager/core/action/trigger_command_action.hpp"
-#include "manager/core/runtime/manager_types.hpp"
-#include "manager/core/runtime/task.hpp"
-#include "manager/resources/mechanism_resources.hpp"
+#include <rmcs_dart_guidance/action/belt_command_action.hpp>
+#include <rmcs_dart_guidance/action/filling_command_action.hpp>
+#include <rmcs_dart_guidance/action/trigger_command_action.hpp>
+#include "manager/runtime/manager_types.hpp"
+#include "manager/runtime/task.hpp"
+#include <rmcs_dart_guidance/resource/mechanism_resources.hpp>
 
 #include <memory>
 
