@@ -1,7 +1,8 @@
 #pragma once
 
-#include "manager/core/action/action_timeouts.hpp"
-#include "manager/core/action/mechanism_command_action.hpp"
+#include "manager/core/action/belt_command_action.hpp"
+#include "manager/core/action/filling_command_action.hpp"
+#include "manager/core/action/trigger_command_action.hpp"
 #include "manager/core/runtime/manager_types.hpp"
 #include "manager/core/runtime/task.hpp"
 #include "manager/resources/mechanism_resources.hpp"
@@ -25,33 +26,29 @@ public:
         const auto first_down =
             runtime_state.fire_count == 0 ? BeltCommand::DOWN_SLOW : BeltCommand::DOWN_FAST;
 
+        then(std::make_shared<BeltCommandAction>("belt_down_1", resources.belt, first_down, 200));
         then(
             std::make_shared<BeltCommandAction>(
-                "belt_down_1", resources.belt, first_down, kTimeoutBeltDown));
-        then(
-            std::make_shared<BeltCommandAction>(
-                "belt_down_hold", resources.belt, BeltCommand::DOWN_HOLD, kTimeoutBeltDownHold));
+                "belt_down_hold", resources.belt, BeltCommand::DOWN_HOLD, 200));
         then(
             std::make_shared<TriggerCommandAction>(
-                "trigger_lock", resources.trigger, TriggerCommand::SERVO_LOCK,
-                kTimeoutTriggerServo));
+                "trigger_lock", resources.trigger, TriggerCommand::SERVO_LOCK, 200));
 
         if (runtime_state.fire_count > 0) {
             then(
                 std::make_shared<FillingCommandAction>(
-                    "filling_lift_down", resources.filling, FillingCommand::LIFT_DOWN,
-                    kTimeoutFillingLift));
+                    "filling_lift_down", resources.filling, FillingCommand::LIFT_DOWN, 200));
         }
 
         then(
             std::make_shared<BeltCommandAction>(
-                "belt_up_soft", resources.belt, BeltCommand::UP_SOFT, kTimeoutBeltUpSoft));
+                "belt_up_soft", resources.belt, BeltCommand::UP_SOFT, 200));
         then(
             std::make_shared<BeltCommandAction>(
-                "belt_up_hard", resources.belt, BeltCommand::UP_HARD, kTimeoutBeltUpHard));
+                "belt_up_hard", resources.belt, BeltCommand::UP_HARD, 200));
         then(
             std::make_shared<BeltCommandAction>(
-                "belt_up_stall", resources.belt, BeltCommand::UP_STALL, kTimeoutBeltUpStall));
+                "belt_up_stall", resources.belt, BeltCommand::UP_STALL, 500));
     }
 };
 

@@ -119,7 +119,7 @@ enum class FillingCommand : uint8_t {
 - **SUCCEEDED/FAILED/ABORTED**：保持到 guidance 写 `IDLE` 或新有效命令
 - **边沿**：`cmd 变化` 或 `从终态/IDLE 进入有效命令`
 - **cancel / 任务失败**：写 **ABORT 并保持**，直到外部 `recover` 再 idle（正常成功只 idle，不发 ABORT）
-- **机构 Action 超时**：每步单独配置 `timeout_ticks`（`action_timeouts.hpp`）；须大于 core `stub_complete_ticks`。超时 → `TIMEOUT` → 与失败相同（ABORT 保持 + ERROR）。`update` 判定：failed → succeeded → timeout
+- **机构 Action 超时**：Task 注册时逐步写死 `timeout_ticks`（须大于 core `stub_complete_ticks`）。超时 → `TIMEOUT` → 与失败相同（ABORT 保持 + ERROR）。`update` 判定：failed → succeeded → timeout
 
 ### 3.4 Core FSM（写死）
 

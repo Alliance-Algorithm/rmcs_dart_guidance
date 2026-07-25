@@ -1,7 +1,8 @@
 #pragma once
 
-#include "manager/core/action/action_timeouts.hpp"
-#include "manager/core/action/mechanism_command_action.hpp"
+#include "manager/core/action/belt_command_action.hpp"
+#include "manager/core/action/filling_command_action.hpp"
+#include "manager/core/action/trigger_command_action.hpp"
 #include "manager/core/runtime/task.hpp"
 #include "manager/resources/mechanism_resources.hpp"
 
@@ -23,27 +24,25 @@ public:
 
         then(
             std::make_shared<BeltCommandAction>(
-                "belt_down_fast", resources.belt, BeltCommand::DOWN_FAST, kTimeoutBeltDown));
+                "belt_down_fast", resources.belt, BeltCommand::DOWN_FAST, 200));
         then(
             std::make_shared<BeltCommandAction>(
-                "belt_down_hold", resources.belt, BeltCommand::DOWN_HOLD, kTimeoutBeltDownHold));
+                "belt_down_hold", resources.belt, BeltCommand::DOWN_HOLD, 200));
         then(
             std::make_shared<TriggerCommandAction>(
-                "trigger_free", resources.trigger, TriggerCommand::SERVO_FREE,
-                kTimeoutTriggerServo));
+                "trigger_free", resources.trigger, TriggerCommand::SERVO_FREE, 200));
         then(
             std::make_shared<BeltCommandAction>(
-                "belt_up_soft", resources.belt, BeltCommand::UP_SOFT, kTimeoutBeltUpSoft));
+                "belt_up_soft", resources.belt, BeltCommand::UP_SOFT, 200));
         then(
             std::make_shared<BeltCommandAction>(
-                "belt_up_hard", resources.belt, BeltCommand::UP_HARD, kTimeoutBeltUpHard));
+                "belt_up_hard", resources.belt, BeltCommand::UP_HARD, 200));
         then(
             std::make_shared<BeltCommandAction>(
-                "belt_up_stall", resources.belt, BeltCommand::UP_STALL, kTimeoutBeltUpStall));
+                "belt_up_stall", resources.belt, BeltCommand::UP_STALL, 500));
         then(
             std::make_shared<FillingCommandAction>(
-                "filling_lift_up", resources.filling, FillingCommand::LIFT_UP,
-                kTimeoutFillingLift));
+                "filling_lift_up", resources.filling, FillingCommand::LIFT_UP, 200));
     }
 };
 

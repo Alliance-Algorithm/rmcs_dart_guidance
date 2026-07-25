@@ -1,18 +1,10 @@
 #pragma once
 
 #include "manager/core/runtime/action.hpp"
-#include "manager/resources/belt_resource.hpp"
-#include "manager/resources/filling_resource.hpp"
-#include "manager/resources/trigger_resource.hpp"
 
 #include <cstdint>
-#include <limits>
 #include <string>
 #include <utility>
-
-#include <rmcs_dart_guidance/msg/belt_command.hpp>
-#include <rmcs_dart_guidance/msg/filling_command.hpp>
-#include <rmcs_dart_guidance/msg/trigger_command.hpp>
 
 namespace rmcs_dart_guidance::manager {
 
@@ -61,35 +53,6 @@ protected:
     Resource& resource_;
     Command command_;
     uint64_t timeout_ticks_;
-};
-
-class BeltCommandAction
-    : public MechanismCommandAction<BeltResource, rmcs_dart_guidance::msg::BeltCommand> {
-public:
-    using MechanismCommandAction::MechanismCommandAction;
-};
-
-class FillingCommandAction
-    : public MechanismCommandAction<FillingResource, rmcs_dart_guidance::msg::FillingCommand> {
-public:
-    using MechanismCommandAction::MechanismCommandAction;
-};
-
-class TriggerCommandAction
-    : public MechanismCommandAction<TriggerResource, rmcs_dart_guidance::msg::TriggerCommand> {
-public:
-    TriggerCommandAction(
-        std::string name, TriggerResource& resource,
-        rmcs_dart_guidance::msg::TriggerCommand command, uint64_t timeout_ticks,
-        double setpoint = std::numeric_limits<double>::quiet_NaN())
-        : MechanismCommandAction(std::move(name), resource, command, timeout_ticks)
-        , setpoint_(setpoint) {}
-
-protected:
-    void request_command() override { resource_.request(command_, setpoint_); }
-
-private:
-    double setpoint_;
 };
 
 } // namespace rmcs_dart_guidance::manager
