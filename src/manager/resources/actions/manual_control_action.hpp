@@ -33,6 +33,9 @@ public:
         const rmcs_msgs::Switch& remote_rotary_knob_switch,     //
         const Eigen::Vector2d& remote_left_joystick,            //
         const Eigen::Vector2d& remote_right_joystick,           //
+        rmcs_msgs::DartServoCommand& limiting_command,          //
+        rmcs_msgs::DartServoCommand free_command,               //
+        rmcs_msgs::DartServoCommand lock_command,               //
         rmcs_msgs::DartMechanismCommand& belt_command,          //
         double& belt_target_velocity,                           //
         rmcs_msgs::ExitMode& belt_exit_mode,                    //
@@ -58,6 +61,9 @@ public:
         , remote_rotary_knob_switch_(remote_rotary_knob_switch)
         , remote_left_joystick_(remote_left_joystick)
         , remote_right_joystick_(remote_right_joystick)
+        , limiting_command_(limiting_command)
+        , free_command_(free_command)
+        , lock_command_(lock_command)
         , belt_command_output_interface_(belt_command)
         , belt_target_velocity_output_interface_(belt_target_velocity)
         , belt_exit_mode_output_interface_(belt_exit_mode)
@@ -124,7 +130,16 @@ public:
             force_error_interface_ = clamp_to_int32(std::lround(raw_force_error));
         } else if (remote_right_switch_ == rmcs_msgs::Switch::DOWN) {
             chassis_leveling_phase_output_interface_ = rmcs_msgs::ChassisLevelingPhase::MANUAL;
-            apply_leveling_target_velocity_command();
+
+            leveling_front_left_target_velocity_output_interface_ =
+                remote_left_joystick_.y() * 10.0;
+            leveling_front_right_target_velocity_output_interface_ =
+                remote_left_joystick_.x() * 10.0;
+            leveling_rear_left_target_velocity_output_interface_ =
+                remote_right_joystick_.y() * 10.0;
+            leveling_rear_right_target_velocity_output_interface_ =
+                remote_right_joystick_.x() * 10.0;
+            apply_limiting_claw_command();
         }
 
         return ActionStatus::RUNNING;
@@ -193,11 +208,13 @@ private:
         }
     }
 
-    void apply_leveling_target_velocity_command() {
-        leveling_front_left_target_velocity_output_interface_ = remote_left_joystick_.y() * 10.0;
-        leveling_front_right_target_velocity_output_interface_ = remote_left_joystick_.x() * 10.0;
-        leveling_rear_left_target_velocity_output_interface_ = remote_right_joystick_.y() * 10.0;
-        leveling_rear_right_target_velocity_output_interface_ = remote_right_joystick_.x() * 10.0;
+    void apply_limiting_claw_command() {
+        switch (remote_rotary_knob_switch_) {
+        case rmcs_msgs::Switch::DOWN: limiting_command_ = free_command_; break;
+        case rmcs_msgs::Switch::UP: limiting_command_ = lock_command_; break;
+        case rmcs_msgs::Switch::MIDDLE:
+        case rmcs_msgs::Switch::UNKNOWN: break;
+        }
     }
 
     static int32_t clamp_to_int32(const long value) {
@@ -215,6 +232,10 @@ private:
     const rmcs_msgs::Switch& remote_rotary_knob_switch_;
     const Eigen::Vector2d& remote_left_joystick_;
     const Eigen::Vector2d& remote_right_joystick_;
+
+    rmcs_msgs::DartServoCommand& limiting_command_;
+    rmcs_msgs::DartServoCommand free_command_;
+    rmcs_msgs::DartServoCommand lock_command_;
 
     rmcs_msgs::DartMechanismCommand& belt_command_output_interface_;
     double& belt_target_velocity_output_interface_;

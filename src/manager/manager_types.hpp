@@ -97,6 +97,7 @@ struct ManagerOutputContext {
     rmcs_msgs::DartMechanismCommand& lifting_command;
     double& lift_target_velocity;
     rmcs_msgs::ExitMode& lift_exit_mode;
+    bool& lifting_init_flag;
 
     // trigger
     rmcs_msgs::DartServoCommand& trigger_command;

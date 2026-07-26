@@ -73,6 +73,7 @@ public:
         register_output("/dart_manager/lift/command", lift_command_);
         register_output("/dart_manager/lift/target_velocity", lift_target_velocity_);
         register_output("/dart_manager/lift/exit_mode", lift_exit_mode_);
+        register_output("/dart_manager/lift/init_flag", lifting_init_flag_, false);
         register_input("/dart/lifting_left/velocity", lift_left_velocity_);
         register_input("/dart/lifting_left/torque", lift_left_torque_);
         register_input("/dart/lifting_right/velocity", lift_right_velocity_);
@@ -697,6 +698,7 @@ private:
             *lift_command_,                         //
             *lift_target_velocity_,                 //
             *lift_exit_mode_,                       //
+            *lifting_init_flag_,                    //
             *trigger_command_,                      //
             *limiting_command_,                     //
             *carriage_command_,                     //
@@ -799,6 +801,7 @@ private:
     OutputInterface<rmcs_msgs::DartMechanismCommand> lift_command_;
     OutputInterface<double> lift_target_velocity_;
     OutputInterface<rmcs_msgs::ExitMode> lift_exit_mode_;
+    OutputInterface<bool> lifting_init_flag_;
     InputInterface<double> lift_left_velocity_;
     InputInterface<double> lift_left_torque_;
     InputInterface<double> lift_right_velocity_;

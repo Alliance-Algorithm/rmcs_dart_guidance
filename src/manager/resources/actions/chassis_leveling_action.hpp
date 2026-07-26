@@ -98,6 +98,7 @@ public:
 
     void on_enter() override {
         stall_counter_ = 0;
+        confirm_counter_ = 0;
         chassis_leveling_phase_output_interface_ = rmcs_msgs::ChassisLevelingPhase::PITCH;
         max_error_ = 0.02;
     }
@@ -117,7 +118,12 @@ public:
         }
 
         if (std::abs(imu_pitch_) <= max_error_) {
-            return ActionStatus::SUCCESS;
+            ++confirm_counter_;
+            if (confirm_counter_ >= 1000) {
+                return ActionStatus::SUCCESS;
+            }
+        } else {
+            confirm_counter_ = 0;
         }
 
         return ActionStatus::RUNNING;
@@ -125,6 +131,7 @@ public:
 
     void on_exit() override {
         stall_counter_ = 0;
+        confirm_counter_ = 0;
         chassis_leveling_phase_output_interface_ = rmcs_msgs::ChassisLevelingPhase::WAIT;
     }
 
@@ -137,5 +144,6 @@ private:
     const double& imu_pitch_;
     double max_error_;
     int stall_counter_;
+    int confirm_counter_;
 };
 } // namespace rmcs_dart_guidance::manager

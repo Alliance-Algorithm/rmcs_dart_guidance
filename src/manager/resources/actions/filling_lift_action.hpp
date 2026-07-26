@@ -71,9 +71,8 @@ public:
 
         const double avg_velocity =
             (std::abs(lift_left_velocity_) + std::abs(lift_right_velocity_)) / 2.0;
-        const bool torque_active =
-            std::abs(lift_left_torque_) > lift_stall_torque_threshold_
-            || std::abs(lift_right_torque_) > lift_stall_torque_threshold_;
+        const bool torque_active = std::abs(lift_left_torque_) > lift_stall_torque_threshold_
+                                || std::abs(lift_right_torque_) > lift_stall_torque_threshold_;
 
         if (avg_velocity < lift_stall_velocity_threshold_ && torque_active) {
             ++stall_counter_;
@@ -113,6 +112,31 @@ private:
     uint64_t lift_stall_confirm_ticks_;
     uint64_t stall_counter_{0};
     uint64_t timeout_ticks_;
+};
+
+class FillInitialFlagAction : public IAction {
+public:
+    FillInitialFlagAction(
+        std::string name,       //
+        bool& lift_initial_flag //
+        )
+        : IAction(std::move(name))
+        , lift_initial_flag_(lift_initial_flag) {}
+
+    void on_enter() override { lift_initial_flag_ = true; }
+
+    ActionStatus update() override {
+        if (elapsed_ticks() <= 10) {
+            return ActionStatus::RUNNING;
+        } else {
+            return ActionStatus::SUCCESS;
+        }
+    }
+
+    void on_exit() override { lift_initial_flag_ = false; }
+
+private:
+    bool& lift_initial_flag_;
 };
 
 } // namespace rmcs_dart_guidance::manager
