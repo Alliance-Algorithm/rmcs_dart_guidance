@@ -26,20 +26,17 @@ public:
             std::make_shared<BeltCommandAction>(
                 "belt_down_fast", resources.belt, BeltCommand::DOWN_FAST, 200));
         then(
-            std::make_shared<BeltCommandAction>(
-                "belt_down_hold", resources.belt, BeltCommand::STOP, 200));
+            std::make_shared<TimedBeltCommandAction>(
+                "belt_down_hold", resources.belt, BeltCommand::BRAKE, 200));
         then(
             std::make_shared<TriggerCommandAction>(
-                "trigger_free", resources.trigger, TriggerCommand::SERVO_FREE, 200));
+                "trigger_free", resources.trigger, TriggerCommand::TRIGGER_FREE, 200));
         then(
             std::make_shared<BeltCommandAction>(
                 "belt_up_soft", resources.belt, BeltCommand::UP_SOFT, 200));
         then(
             std::make_shared<BeltCommandAction>(
                 "belt_up_hard", resources.belt, BeltCommand::UP_HARD, 200));
-        then(
-            std::make_shared<BeltCommandAction>(
-                "belt_up_stall", resources.belt, BeltCommand::UP_STALL, 500));
         then(
             std::make_shared<FillingCommandAction>(
                 "filling_lift_up", resources.filling, FillingCommand::LIFT_UP, 200));

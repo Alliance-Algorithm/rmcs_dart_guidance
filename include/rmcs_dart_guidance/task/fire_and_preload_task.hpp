@@ -25,7 +25,7 @@ public:
         then(std::make_shared<DelayAction>("fire_delay", 50));
         then(
             std::make_shared<TriggerCommandAction>(
-                "trigger_free", resources.trigger, TriggerCommand::SERVO_FREE, 200));
+                "trigger_free", resources.trigger, TriggerCommand::TRIGGER_FREE, 200));
 
         if (runtime_state.fire_count > 0) {
             then(

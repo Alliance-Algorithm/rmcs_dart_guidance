@@ -1,7 +1,7 @@
 #include "manager/runtime/manager_types.hpp"
 #include "manager/runtime/task.hpp"
 #include "manager/runtime/task_factory.hpp"
-#include <rmcs_dart_guidance/resource/example_resource.hpp>
+#include <rmcs_dart_guidance/resource/mechanism_resources.hpp>
 
 #include <chrono>
 #include <deque>
@@ -28,7 +28,10 @@ public:
         , logger_(get_logger())
         , command_component_(
               create_partner_component<CommandComponent>(get_component_name() + "_command"))
-        , example_resource_(*this, *command_component_, "/dart/example") {
+        , belt_resource_(*this, *command_component_, "/dart/belt")
+        , trigger_resource_(*this, *command_component_, "/dart/trigger")
+        , filling_resource_(*this, *command_component_, "/dart/filling")
+        , mechanism_resources_{belt_resource_, trigger_resource_, filling_resource_} {
 
         register_input("/dart/manager/command", command_input_, false);
         register_output("/dart/manager/fire_count", fire_count_output_, uint32_t{0});
@@ -51,7 +54,9 @@ public:
     }
 
     void before_updating() override {
-        example_resource_.bind_optional(logger_);
+        belt_resource_.bind_optional(logger_);
+        trigger_resource_.bind_optional(logger_);
+        filling_resource_.bind_optional(logger_);
 
         if (!command_input_.ready()) {
             command_input_.make_and_bind_directly(std::string{});
@@ -124,7 +129,7 @@ private:
             return;
         }
 
-        auto task = make_task(cmd, example_resource_);
+        auto task = make_task(cmd, mechanism_resources_, runtime_state_);
         RCLCPP_INFO(logger_, "[DartManager] received command: '%s'", cmd.c_str());
         if (task) {
             submit_task(std::move(task));
@@ -155,9 +160,17 @@ private:
     }
 
     // Hold ABORT until recover() writes IDLE.
-    void abort_all() { example_resource_.abort(); }
+    void abort_all() {
+        belt_resource_.abort();
+        trigger_resource_.abort();
+        filling_resource_.abort();
+    }
 
-    void idle_all() { example_resource_.idle(); }
+    void idle_all() {
+        belt_resource_.idle();
+        trigger_resource_.idle();
+        filling_resource_.idle();
+    }
 
     void submit_task(std::shared_ptr<Task> task) {
         if (!task) {
@@ -303,7 +316,10 @@ private:
     rclcpp::Logger logger_;
 
     std::shared_ptr<CommandComponent> command_component_;
-    ExampleResource example_resource_;
+    BeltResource belt_resource_;
+    TriggerResource trigger_resource_;
+    FillingResource filling_resource_;
+    MechanismResources mechanism_resources_;
 
     InputInterface<std::string> command_input_;
     OutputInterface<uint32_t> fire_count_output_;

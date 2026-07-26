@@ -13,4 +13,19 @@ public:
     using MechanismCommandAction::MechanismCommandAction;
 };
 
+class TimedBeltCommandAction : public BeltCommandAction {
+public:
+    using BeltCommandAction::BeltCommandAction;
+
+    ActionStatus update() override {
+        if (resource_.failed()) {
+            return fail(ActionFailureReason::DEPENDENCY_FAILURE);
+        }
+        if (timeout_ticks_ == 0 || elapsed_ticks() >= timeout_ticks_) {
+            return ActionStatus::SUCCESS;
+        }
+        return ActionStatus::RUNNING;
+    }
+};
+
 } // namespace rmcs_dart_guidance::manager

@@ -7,12 +7,12 @@ namespace rmcs_dart_guidance::msg {
 enum class TriggerCommand : uint8_t {
     IDLE = 0,
     ABORT = 1,
-    SERVO_LOCK = 2,
-    SERVO_FREE = 3,
-    SLIDE_UP = 4,
-    SLIDE_DOWN = 5,
-    SLIDE_STALL_CALIB = 6,
-    SLIDE_GOTO = 7,
+    TRIGGER_FREE = 2,
+    TRIGGER_LOCK = 3,
+    CARRIAGE_UP = 4,
+    CARRIAGE_DOWN = 5,
+    CARRIAGE_CALIBRATE = 6,
+    CARRIAGE_GOTO = 7,
 };
 
 inline bool is_active(TriggerCommand cmd) {
@@ -23,12 +23,12 @@ inline const char* to_string(TriggerCommand cmd) {
     switch (cmd) {
     case TriggerCommand::IDLE: return "IDLE";
     case TriggerCommand::ABORT: return "ABORT";
-    case TriggerCommand::SERVO_LOCK: return "SERVO_LOCK";
-    case TriggerCommand::SERVO_FREE: return "SERVO_FREE";
-    case TriggerCommand::SLIDE_UP: return "SLIDE_UP";
-    case TriggerCommand::SLIDE_DOWN: return "SLIDE_DOWN";
-    case TriggerCommand::SLIDE_STALL_CALIB: return "SLIDE_STALL_CALIB";
-    case TriggerCommand::SLIDE_GOTO: return "SLIDE_GOTO";
+    case TriggerCommand::TRIGGER_FREE: return "TRIGGER_FREE";
+    case TriggerCommand::TRIGGER_LOCK: return "TRIGGER_LOCK";
+    case TriggerCommand::CARRIAGE_UP: return "CARRIAGE_UP";
+    case TriggerCommand::CARRIAGE_DOWN: return "CARRIAGE_DOWN";
+    case TriggerCommand::CARRIAGE_CALIBRATE: return "CARRIAGE_CALIBRATE";
+    case TriggerCommand::CARRIAGE_GOTO: return "CARRIAGE_GOTO";
     }
     return "UNKNOWN";
 }

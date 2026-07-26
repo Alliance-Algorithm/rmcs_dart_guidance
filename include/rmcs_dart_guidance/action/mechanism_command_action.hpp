@@ -19,13 +19,19 @@ public:
         , command_(command)
         , timeout_ticks_(timeout_ticks) {}
 
-    void on_enter() override { request_command(); }
+    void on_enter() override {
+        seen_busy_ = false;
+        request_command();
+    }
 
     ActionStatus update() override {
         if (resource_.failed()) {
             return fail(ActionFailureReason::DEPENDENCY_FAILURE);
         }
-        if (resource_.succeeded()) {
+        if (resource_.busy()) {
+            seen_busy_ = true;
+        }
+        if (seen_busy_ && resource_.succeeded()) {
             return ActionStatus::SUCCESS;
         }
         if (timeout_ticks_ > 0 && elapsed_ticks() >= timeout_ticks_) {
@@ -53,6 +59,7 @@ protected:
     Resource& resource_;
     Command command_;
     uint64_t timeout_ticks_;
+    bool seen_busy_{false};
 };
 
 } // namespace rmcs_dart_guidance::manager

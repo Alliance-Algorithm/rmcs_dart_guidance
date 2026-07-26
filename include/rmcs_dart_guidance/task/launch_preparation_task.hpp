@@ -31,11 +31,11 @@ public:
                 "belt_down_1", resources.belt, belt_command_down, 200));
 
         then(
-            std::make_shared<BeltCommandAction>(
-                "belt_down_hold", resources.belt, BeltCommand::STOP, 200));
+            std::make_shared<TimedBeltCommandAction>(
+                "belt_down_hold", resources.belt, BeltCommand::BRAKE, 200));
         then(
             std::make_shared<TriggerCommandAction>(
-                "trigger_lock", resources.trigger, TriggerCommand::SERVO_LOCK, 200));
+                "trigger_lock", resources.trigger, TriggerCommand::TRIGGER_LOCK, 200));
 
         if (runtime_state.fire_count > 0) {
             then(
@@ -49,9 +49,6 @@ public:
         then(
             std::make_shared<BeltCommandAction>(
                 "belt_up_hard", resources.belt, BeltCommand::UP_HARD, 200));
-        then(
-            std::make_shared<BeltCommandAction>(
-                "belt_up_stall", resources.belt, BeltCommand::UP_STALL, 500));
     }
 };
 
