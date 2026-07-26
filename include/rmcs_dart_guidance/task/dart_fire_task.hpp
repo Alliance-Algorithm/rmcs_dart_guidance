@@ -2,6 +2,7 @@
 
 #include "manager/runtime/manager_types.hpp"
 #include "manager/runtime/task.hpp"
+#include "rmcs_dart_guidance/action/delay_action.hpp"
 #include <rmcs_dart_guidance/action/configuration_guard_action.hpp>
 #include <rmcs_dart_guidance/action/fire_count_increment_action.hpp>
 #include <rmcs_dart_guidance/action/trigger_command_action.hpp>
@@ -26,6 +27,8 @@ public:
         const std::size_t goto_index =
             std::min<std::size_t>(static_cast<std::size_t>(runtime_state.fire_count) + 1, 3);
 
+        then(std::make_shared<DelayAction>("delay", 1000));
+
         then(
             std::make_shared<ConfigurationGuardAction>(
                 "launch_carriage_positions_configured",
@@ -34,6 +37,9 @@ public:
             std::make_shared<TriggerCommandAction>(
                 "trigger_free", resources.trigger, TriggerCommand::TRIGGER_FREE,
                 kServoTimeoutTicks));
+
+        then(std::make_shared<DelayAction>("delay", 500));
+
         then(
             std::make_shared<TriggerCommandAction>(
                 "carriage_goto_next_launch", resources.trigger, TriggerCommand::CARRIAGE_GOTO,
