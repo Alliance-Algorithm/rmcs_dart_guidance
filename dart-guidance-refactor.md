@@ -194,33 +194,51 @@ guidance 为控制使用方，故 command 侧为 **output**、status 侧为 **in
 
 ### 5.1 Task 序列
 
-**launch_prepare**
+**dart-init**
 
 ```text
-(fire_count==0 ? DOWN_SLOW : DOWN_FAST) → DOWN_HOLD
-→ SERVO_LOCK → [fire_count>0] LIFT_DOWN
-→ UP_SOFT → UP_HARD → UP_STALL
+all-success(INIT, LIFT_UP, TRIGGER_FREE)
 ```
 
-**fire_preload**
+**dart-launch-prepare**
 
 ```text
-Delay → SERVO_FREE → [fire_count>0] LIFT_UP → LIMIT_PULSE_FILL → FireCount++
+fire_count == 0:
+DOWN_SLOW → TRIGGER_LOCK → UP_SOFT
+
+fire_count > 0:
+DOWN_FAST → LIFT_DOWN → UP_SOFT_PART → LIFT_UP
+→ DOWN_SLOW_PART → TRIGGER_LOCK
+→ all-success(UP_SOFT, LIMIT_PULSE_FILL)
 ```
 
-**cancel_launch**
+**dart-launch-cancel**
 
 ```text
-DOWN_FAST → DOWN_HOLD → SERVO_FREE → UP_SOFT → UP_HARD → UP_STALL → LIFT_UP
+DOWN_FAST → TRIGGER_FREE → UP_HARD
+```
+
+**dart-fire**
+
+```text
+TRIGGER_FREE → FireCount++
+```
+
+**dart-carriage-calibrate**
+
+```text
+CARRIAGE_CALIBRATE
 ```
 
 ### 5.2 外部命令
 
 | 字符串 | 处理 |
 |--------|------|
-| `launch_prepare` / `launch-prepare` | LaunchPreparationTask |
-| `fire_preload` / `fire` | FireAndPreloadTask |
-| `launch_cancel` / `cancel_launch` / `unload` | CancelLaunchTask |
+| `dart-init` / `dart_init` | DartInitTask |
+| `dart-launch-prepare` / `dart_launch_prepare` / `launch_prepare` / `launch-prepare` | DartLaunchPrepareTask |
+| `dart-launch-cancel` / `dart_launch_cancel` / `launch_cancel` / `cancel_launch` / `unload` | DartLaunchCancelTask |
+| `dart-fire` / `dart_fire` / `fire_preload` / `fire` | DartFireTask |
+| `dart-carriage-calibrate` / `dart_carriage_calibrate` / `carriage_init` / `carriage-init` | DartCarriageCalibrateTask |
 | `cancel` | 清空队列 + Action cancel + 机构 ABORT 保持 + lifecycle=ERROR |
 | `recover` | ERROR→IDLE，机构 idle，清 fire_count |
 

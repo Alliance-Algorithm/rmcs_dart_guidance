@@ -14,8 +14,8 @@ namespace rmcs_dart_guidance::manager {
 /* 键位映射：
     双下：全部停止 -> "cancel"
     左拨杆 DOWN->MIDDLE：恢复 -> "recover"
-    左拨杆保持 MIDDLE，右拨杆 MIDDLE->DOWN：发射准备 -> "launch_prepare"
-    左拨杆保持 MIDDLE，右拨杆 MIDDLE->UP：发射并预装填 -> "fire_preload"
+    左拨杆保持 MIDDLE，右拨杆 MIDDLE->DOWN：发射准备 -> "dart-launch-prepare"
+    左拨杆保持 MIDDLE，右拨杆 MIDDLE->UP：发射 -> "dart-fire"
 
 */
 
@@ -69,15 +69,15 @@ public:
         }
 
         if (detect_launch_prepare_transition(left, right)) {
-            emit_command("launch_prepare");
-            RCLCPP_INFO(logger_, "[RemoteCommandBridge] launch_prepare");
+            emit_command("dart-launch-prepare");
+            RCLCPP_INFO(logger_, "[RemoteCommandBridge] dart-launch-prepare");
             remember_switches(left, right);
             return;
         }
 
-        if (detect_fire_preload_transition(left, right)) {
-            emit_command("fire_preload");
-            RCLCPP_INFO(logger_, "[RemoteCommandBridge] fire_preload");
+        if (detect_fire_transition(left, right)) {
+            emit_command("dart-fire");
+            RCLCPP_INFO(logger_, "[RemoteCommandBridge] dart-fire");
             remember_switches(left, right);
             return;
         }
@@ -104,7 +104,7 @@ private:
             && current_right == rmcs_msgs::Switch::DOWN;
     }
 
-    bool detect_fire_preload_transition(
+    bool detect_fire_transition(
         rmcs_msgs::Switch current_left, rmcs_msgs::Switch current_right) const {
         return current_left == rmcs_msgs::Switch::MIDDLE && prev_right_ == rmcs_msgs::Switch::MIDDLE
             && current_right == rmcs_msgs::Switch::UP;

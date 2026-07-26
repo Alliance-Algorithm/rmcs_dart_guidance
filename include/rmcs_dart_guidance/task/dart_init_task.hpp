@@ -1,36 +1,41 @@
 #pragma once
 
+#include "manager/runtime/action_set.hpp"
 #include "manager/runtime/task.hpp"
 #include <rmcs_dart_guidance/action/belt_command_action.hpp>
+#include <rmcs_dart_guidance/action/filling_command_action.hpp>
 #include <rmcs_dart_guidance/action/trigger_command_action.hpp>
 #include <rmcs_dart_guidance/resource/mechanism_resources.hpp>
 
 #include <memory>
 
 #include <rmcs_dart_guidance/msg/belt_command.hpp>
+#include <rmcs_dart_guidance/msg/filling_command.hpp>
 #include <rmcs_dart_guidance/msg/trigger_command.hpp>
 
 namespace rmcs_dart_guidance::manager {
 
-class DartLaunchCancelTask : public Task {
+class DartInitTask : public Task {
 public:
-    explicit DartLaunchCancelTask(MechanismResources& resources)
-        : Task("dart-launch-cancel", "取消发射") {
+    explicit DartInitTask(MechanismResources& resources)
+        : Task("dart-init", "初始化") {
         using rmcs_dart_guidance::msg::BeltCommand;
+        using rmcs_dart_guidance::msg::FillingCommand;
         using rmcs_dart_guidance::msg::TriggerCommand;
 
-        then(
+        auto init = std::make_shared<ActionSet>("dart_init_all");
+        init->also(
             std::make_shared<BeltCommandAction>(
-                "belt_down_fast", resources.belt, BeltCommand::DOWN_FAST,
+                "belt_init", resources.belt, BeltCommand::INIT, kMechanismTimeoutTicks));
+        init->also(
+            std::make_shared<FillingCommandAction>(
+                "filling_lift_up", resources.filling, FillingCommand::LIFT_UP,
                 kMechanismTimeoutTicks));
-        then(
+        init->also(
             std::make_shared<TriggerCommandAction>(
                 "trigger_free", resources.trigger, TriggerCommand::TRIGGER_FREE,
                 kServoTimeoutTicks));
-        then(
-            std::make_shared<BeltCommandAction>(
-                "belt_up_hard", resources.belt, BeltCommand::UP_HARD,
-                kMechanismTimeoutTicks));
+        then(init);
     }
 
 private:

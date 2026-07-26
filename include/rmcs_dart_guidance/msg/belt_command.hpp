@@ -14,6 +14,7 @@ enum class BeltCommand : uint8_t {
     UP_SOFT_PART = 6,
     UP_HARD = 7,
     BRAKE = 8,
+    INIT = 9,
 };
 
 inline bool is_active(BeltCommand cmd) {
@@ -31,6 +32,7 @@ inline const char* to_string(BeltCommand cmd) {
     case BeltCommand::UP_SOFT_PART: return "UP_SOFT_PART";
     case BeltCommand::UP_HARD: return "UP_HARD";
     case BeltCommand::BRAKE: return "BRAKE";
+    case BeltCommand::INIT: return "INIT";
     }
     return "UNKNOWN";
 }

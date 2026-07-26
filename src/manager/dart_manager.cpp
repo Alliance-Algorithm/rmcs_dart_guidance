@@ -14,6 +14,7 @@
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/switch.hpp>
 
 namespace rmcs_dart_guidance::manager {
 
@@ -34,10 +35,12 @@ public:
         , mechanism_resources_{belt_resource_, trigger_resource_, filling_resource_} {
 
         register_input("/dart/manager/command", command_input_, false);
+        register_input("/remote/switch/left", switch_left_, false);
         register_output("/dart/manager/fire_count", fire_count_output_, uint32_t{0});
         register_output(
             "/dart/manager/debug/lifecycle_state", debug_lifecycle_state_output_,
             std::string{to_string(ManagerLifecycleState::IDLE)});
+        register_output("/dart/manager/debug/manual_mode", debug_manual_mode_output_, false);
         register_output(
             "/dart/manager/debug/current_task", debug_current_task_output_, std::string{});
         register_output(
@@ -62,13 +65,23 @@ public:
             command_input_.make_and_bind_directly(std::string{});
             RCLCPP_WARN(logger_, "Failed to fetch \"/dart/manager/command\". Set to empty string.");
         }
+        if (!switch_left_.ready()) {
+            switch_left_.make_and_bind_directly(rmcs_msgs::Switch::UNKNOWN);
+            RCLCPP_WARN(logger_, "Failed to fetch \"/remote/switch/left\". Set to UNKNOWN.");
+        }
         sync_debug_outputs();
     }
 
     void update() override {
+        update_manual_mode();
         poll_commands();
 
         if (runtime_state_.lifecycle_state == ManagerLifecycleState::ERROR) {
+            sync_debug_outputs();
+            return;
+        }
+
+        if (manual_mode_) {
             sync_debug_outputs();
             return;
         }
@@ -122,6 +135,11 @@ private:
             return;
         }
 
+        if (manual_mode_) {
+            RCLCPP_WARN(logger_, "[DartManager] ignored command '%s' while manual_mode=true", cmd.c_str());
+            return;
+        }
+
         if (runtime_state_.lifecycle_state == ManagerLifecycleState::ERROR) {
             RCLCPP_WARN(
                 logger_, "[DartManager] ignored command '%s' while lifecycle_state=ERROR",
@@ -136,6 +154,33 @@ private:
         } else {
             RCLCPP_WARN(logger_, "[DartManager] unknown command: '%s'", cmd.c_str());
         }
+    }
+
+    void update_manual_mode() {
+        const bool next_manual_mode =
+            switch_left_.ready() && *switch_left_ == rmcs_msgs::Switch::UP;
+        if (next_manual_mode == manual_mode_) {
+            return;
+        }
+
+        manual_mode_ = next_manual_mode;
+        if (manual_mode_) {
+            enter_manual_mode();
+        } else {
+            RCLCPP_INFO(logger_, "[DartManager] manual mode exited");
+        }
+    }
+
+    void enter_manual_mode() {
+        if (runtime_state_.lifecycle_state == ManagerLifecycleState::ERROR) {
+            RCLCPP_WARN(logger_, "[DartManager] manual mode entered while lifecycle_state=ERROR");
+            return;
+        }
+
+        cancel_task_state(task_state_, ActionCancelReason::NORMAL_COMPLETION);
+        idle_all();
+        transition_to(ManagerLifecycleState::IDLE);
+        RCLCPP_INFO(logger_, "[DartManager] manual mode entered -> tasks cleared, lifecycle=IDLE");
     }
 
     void cancel_all() {
@@ -298,6 +343,7 @@ private:
     void sync_debug_outputs() {
         *fire_count_output_ = runtime_state_.fire_count;
         *debug_lifecycle_state_output_ = to_string(runtime_state_.lifecycle_state);
+        *debug_manual_mode_output_ = manual_mode_;
         *debug_current_task_output_ = active_task_name();
         *debug_current_action_output_ = active_action_name();
         *debug_queue_output_ = build_queue_snapshot();
@@ -322,8 +368,10 @@ private:
     MechanismResources mechanism_resources_;
 
     InputInterface<std::string> command_input_;
+    InputInterface<rmcs_msgs::Switch> switch_left_;
     OutputInterface<uint32_t> fire_count_output_;
     OutputInterface<std::string> debug_lifecycle_state_output_;
+    OutputInterface<bool> debug_manual_mode_output_;
     OutputInterface<std::string> debug_current_task_output_;
     OutputInterface<std::string> debug_current_action_output_;
     OutputInterface<std::vector<ManagerQueuedTaskInfo>> debug_queue_output_;
@@ -332,6 +380,7 @@ private:
     std::optional<ManagerLastErrorInfo> last_error_;
     ManagerRuntimeState runtime_state_{};
     TaskState task_state_{};
+    bool manual_mode_{false};
 };
 
 } // namespace rmcs_dart_guidance::manager
