@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -27,6 +28,11 @@ inline const char* to_string(ManagerLifecycleState state) {
 struct ManagerRuntimeState {
     uint32_t fire_count{0};
     ManagerLifecycleState lifecycle_state{ManagerLifecycleState::IDLE};
+};
+
+struct ManagerSettings {
+    std::array<double, 4> launch_carriage_positions{};
+    bool launch_carriage_positions_configured{false};
 };
 
 struct ManagerQueuedTaskInfo {

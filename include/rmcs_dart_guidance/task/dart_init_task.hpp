@@ -31,16 +31,16 @@ public:
             std::make_shared<FillingCommandAction>(
                 "filling_lift_up", resources.filling, FillingCommand::LIFT_UP,
                 kMechanismTimeoutTicks));
-        init->also(
-            std::make_shared<TriggerCommandAction>(
-                "trigger_free", resources.trigger, TriggerCommand::TRIGGER_FREE,
-                kServoTimeoutTicks));
+        // init->also(
+        //     std::make_shared<TriggerCommandAction>(
+        //         "trigger_free", resources.trigger, TriggerCommand::TRIGGER_FREE,
+        //         kServoTimeoutTicks));
         then(init);
     }
 
 private:
-    static constexpr uint64_t kMechanismTimeoutTicks = 5000;
-    static constexpr uint64_t kServoTimeoutTicks = 200;
+    static constexpr uint64_t kMechanismTimeoutTicks = 20000;
+    static constexpr uint64_t kServoTimeoutTicks = 1000;
 };
 
 } // namespace rmcs_dart_guidance::manager

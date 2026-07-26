@@ -60,8 +60,11 @@ src/manager/
 遥控器映射如下：
 - 双下：`cancel`
 - 左拨杆 `DOWN -> MIDDLE`：`recover`
-- 左拨杆保持 `MIDDLE` 且右拨杆 `MIDDLE -> DOWN`：`dart-launch-prepare`
+- 左拨杆保持 `MIDDLE` 且右拨杆 `MIDDLE -> DOWN`：`dart-launch-prepare`；若上一次已发布发射准备且尚未发射/取消/recover，则发布 `dart-launch-cancel`
 - 左拨杆保持 `MIDDLE` 且右拨杆 `MIDDLE -> UP`：`dart-fire`
+
+ROS 命令来源：
+- `/carriage/calibrate` (`std_msgs/msg/Int32`)：收到消息后发布一次 `dart-carriage-calibrate`
 
 内置保留命令包括：
 - `cancel`：取消当前任务并清空任务队列。
@@ -89,5 +92,7 @@ src/manager/
 - `fire_count == 0`：首发流程
 - `fire_count > 0`：后续流程
 - `recover` 会将 `fire_count` 清零
+
+滑台发射位置由 `dart_manager` 参数 `launch_carriage_position_1..4` 配置，单位为相对滑台标定零点的 encoder 值。`dart-carriage-calibrate` 在标定完成后 goto 位置 1；`dart-fire` 在释放扳机后 goto 下一发位置，`fire_count=0/1/>=2` 分别对应位置 2/3/4，第 4 发及之后重复位置 4，goto 成功后才递增 `fire_count`。
 
 任务执行失败时会触发 `on_task_failure()`，该函数会将输出置零，保证系统安全，并将状态机置为 `ERROR`。

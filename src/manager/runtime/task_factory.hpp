@@ -17,7 +17,7 @@ namespace rmcs_dart_guidance::manager {
 
 inline std::shared_ptr<Task> make_task(
     const std::string& cmd, MechanismResources& mechanism_resources,
-    ManagerRuntimeState& runtime_state) {
+    ManagerRuntimeState& runtime_state, const ManagerSettings& settings) {
     if (cmd == "dart-init" || cmd == "dart_init") {
         return std::make_shared<DartInitTask>(mechanism_resources);
     }
@@ -30,11 +30,11 @@ inline std::shared_ptr<Task> make_task(
         return std::make_shared<DartLaunchCancelTask>(mechanism_resources);
     }
     if (cmd == "dart-fire" || cmd == "dart_fire" || cmd == "fire_preload" || cmd == "fire") {
-        return std::make_shared<DartFireTask>(mechanism_resources, runtime_state);
+        return std::make_shared<DartFireTask>(mechanism_resources, runtime_state, settings);
     }
     if (cmd == "dart-carriage-calibrate" || cmd == "dart_carriage_calibrate"
         || cmd == "carriage_init" || cmd == "carriage-init") {
-        return std::make_shared<DartCarriageCalibrateTask>(mechanism_resources);
+        return std::make_shared<DartCarriageCalibrateTask>(mechanism_resources, settings);
     }
     return nullptr;
 }

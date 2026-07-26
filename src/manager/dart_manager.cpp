@@ -3,7 +3,9 @@
 #include "manager/runtime/task_factory.hpp"
 #include <rmcs_dart_guidance/resource/mechanism_resources.hpp>
 
+#include <array>
 #include <chrono>
+#include <cmath>
 #include <deque>
 #include <memory>
 #include <optional>
@@ -51,6 +53,7 @@ public:
             "/dart/manager/debug/last_error", debug_last_error_output_,
             std::optional<ManagerLastErrorInfo>{});
 
+        load_launch_carriage_positions();
         reset_fire_count();
         sync_debug_outputs();
         RCLCPP_INFO(logger_, "[DartManager] initialized (resource-owned mechanism IO)");
@@ -75,6 +78,12 @@ public:
     void update() override {
         update_manual_mode();
         poll_commands();
+
+        if (defer_dispatch_once_) {
+            defer_dispatch_once_ = false;
+            sync_debug_outputs();
+            return;
+        }
 
         if (runtime_state_.lifecycle_state == ManagerLifecycleState::ERROR) {
             sync_debug_outputs();
@@ -136,7 +145,8 @@ private:
         }
 
         if (manual_mode_) {
-            RCLCPP_WARN(logger_, "[DartManager] ignored command '%s' while manual_mode=true", cmd.c_str());
+            RCLCPP_WARN(
+                logger_, "[DartManager] ignored command '%s' while manual_mode=true", cmd.c_str());
             return;
         }
 
@@ -147,7 +157,7 @@ private:
             return;
         }
 
-        auto task = make_task(cmd, mechanism_resources_, runtime_state_);
+        auto task = make_task(cmd, mechanism_resources_, runtime_state_, settings_);
         RCLCPP_INFO(logger_, "[DartManager] received command: '%s'", cmd.c_str());
         if (task) {
             submit_task(std::move(task));
@@ -190,18 +200,30 @@ private:
         abort_all();
         record_last_error(task_name, "cancel", ActionFailureReason::EXTERNAL_CANCEL);
         transition_to(ManagerLifecycleState::ERROR);
-        RCLCPP_WARN(
-            logger_, "[DartManager] cancel -> ABORT held, lifecycle=ERROR (recover to idle)");
+        if (count++ == 2000) {
+            RCLCPP_WARN(
+                logger_, "[DartManager] cancel -> ABORT held, lifecycle=ERROR (recover to idle)");
+            count = 0;
+        }
     }
+    int count = 0;
 
     void recover() {
-        if (runtime_state_.lifecycle_state == ManagerLifecycleState::ERROR) {
+        const bool was_error = runtime_state_.lifecycle_state == ManagerLifecycleState::ERROR;
+        if (was_error) {
             reset_task_state(task_state_);
             RCLCPP_INFO(logger_, "[DartManager] recovered from ERROR, state=IDLE");
             transition_to(ManagerLifecycleState::IDLE);
         }
         reset_fire_count();
         idle_all();
+        if (was_error) {
+            auto init_task = make_task("dart-init", mechanism_resources_, runtime_state_, settings_);
+            if (init_task) {
+                submit_task(std::move(init_task));
+                defer_dispatch_once_ = true;
+            }
+        }
     }
 
     // Hold ABORT until recover() writes IDLE.
@@ -352,6 +374,28 @@ private:
 
     void reset_fire_count() { runtime_state_.fire_count = 0; }
 
+    void load_launch_carriage_positions() {
+        static constexpr std::array<const char*, 4> kParameterNames{
+            "launch_carriage_position_1", "launch_carriage_position_2",
+            "launch_carriage_position_3", "launch_carriage_position_4"};
+
+        bool configured = true;
+        for (std::size_t i = 0; i < kParameterNames.size(); ++i) {
+            const char* name = kParameterNames[i];
+            double position = 0.0;
+            if (!has_parameter(name) || !get_parameter(name, position) || !std::isfinite(position)) {
+                RCLCPP_ERROR(
+                    logger_,
+                    "[DartManager] invalid or missing launch carriage position parameter '%s'",
+                    name);
+                configured = false;
+                continue;
+            }
+            settings_.launch_carriage_positions[i] = position;
+        }
+        settings_.launch_carriage_positions_configured = configured;
+    }
+
     // Partner carries mechanism command outputs (breaks cycles like hardware boards).
     // Nested like OmniInfantry::InfantryCommand; update is empty (commands written by main update).
     class CommandComponent : public rmcs_executor::Component {
@@ -379,8 +423,10 @@ private:
 
     std::optional<ManagerLastErrorInfo> last_error_;
     ManagerRuntimeState runtime_state_{};
+    ManagerSettings settings_{};
     TaskState task_state_{};
     bool manual_mode_{false};
+    bool defer_dispatch_once_{false};
 };
 
 } // namespace rmcs_dart_guidance::manager

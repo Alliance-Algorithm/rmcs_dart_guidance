@@ -1,3 +1,4 @@
+#include <atomic>
 #include <string>
 
 #include <rclcpp/logger.hpp>
@@ -5,6 +6,7 @@
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
 #include <rmcs_msgs/switch.hpp>
+#include <std_msgs/msg/int32.hpp>
 
 namespace rmcs_dart_guidance::manager {
 
@@ -14,7 +16,7 @@ namespace rmcs_dart_guidance::manager {
 /* 键位映射：
     双下：全部停止 -> "cancel"
     左拨杆 DOWN->MIDDLE：恢复 -> "recover"
-    左拨杆保持 MIDDLE，右拨杆 MIDDLE->DOWN：发射准备 -> "dart-launch-prepare"
+    左拨杆保持 MIDDLE，右拨杆 MIDDLE->DOWN：发射准备/取消准备 toggle
     左拨杆保持 MIDDLE，右拨杆 MIDDLE->UP：发射 -> "dart-fire"
 
 */
@@ -32,6 +34,12 @@ public:
         register_input("/remote/switch/right", switch_right_, false);
 
         register_output("/dart/manager/command", command_output_, std::string{});
+
+        carriage_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
+            "/carriage/calibrate", rclcpp::QoS{0}, [this](std_msgs::msg::Int32::UniquePtr) {
+                carriage_calibrate_pending_.store(true);
+                RCLCPP_INFO(logger_, "[RemoteCommandBridge] carriage calibrate requested");
+            });
 
         RCLCPP_INFO(logger_, "[RemoteCommandBridge] initialized");
     }
@@ -57,27 +65,50 @@ public:
 
         if (left == Switch::DOWN && right == Switch::DOWN) {
             emit_command("cancel");
+            launch_prepare_pending_ = false;
+            carriage_calibrate_pending_.store(false);
             remember_switches(left, right);
             return;
         }
 
         if (detect_recover_transition(left)) {
             emit_command("recover");
+            launch_prepare_pending_ = false;
+            carriage_calibrate_pending_.store(false);
             RCLCPP_INFO(logger_, "[RemoteCommandBridge] recover");
             remember_switches(left, right);
             return;
         }
 
         if (detect_launch_prepare_transition(left, right)) {
-            emit_command("dart-launch-prepare");
-            RCLCPP_INFO(logger_, "[RemoteCommandBridge] dart-launch-prepare");
+            if (launch_prepare_pending_) {
+                emit_command("dart-launch-cancel");
+                launch_prepare_pending_ = false;
+                carriage_calibrate_pending_.store(false);
+                RCLCPP_INFO(logger_, "[RemoteCommandBridge] dart-launch-cancel");
+            } else {
+                emit_command("dart-launch-prepare");
+                launch_prepare_pending_ = true;
+                carriage_calibrate_pending_.store(false);
+                RCLCPP_INFO(logger_, "[RemoteCommandBridge] dart-launch-prepare");
+            }
             remember_switches(left, right);
             return;
         }
 
         if (detect_fire_transition(left, right)) {
             emit_command("dart-fire");
+            launch_prepare_pending_ = false;
+            carriage_calibrate_pending_.store(false);
             RCLCPP_INFO(logger_, "[RemoteCommandBridge] dart-fire");
+            remember_switches(left, right);
+            return;
+        }
+
+        if (carriage_calibrate_pending_.exchange(false)) {
+            emit_command("dart-carriage-calibrate");
+            launch_prepare_pending_ = false;
+            RCLCPP_INFO(logger_, "[RemoteCommandBridge] dart-carriage-calibrate");
             remember_switches(left, right);
             return;
         }
@@ -99,8 +130,7 @@ private:
 
     bool detect_launch_prepare_transition(
         rmcs_msgs::Switch current_left, rmcs_msgs::Switch current_right) const {
-        return current_left == rmcs_msgs::Switch::MIDDLE
-            && prev_right_ == rmcs_msgs::Switch::MIDDLE
+        return current_left == rmcs_msgs::Switch::MIDDLE && prev_right_ == rmcs_msgs::Switch::MIDDLE
             && current_right == rmcs_msgs::Switch::DOWN;
     }
 
@@ -115,9 +145,12 @@ private:
     InputInterface<rmcs_msgs::Switch> switch_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
     OutputInterface<std::string> command_output_;
+    rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr carriage_calibrate_subscription_;
 
     rmcs_msgs::Switch prev_left_{rmcs_msgs::Switch::UNKNOWN};
     rmcs_msgs::Switch prev_right_{rmcs_msgs::Switch::UNKNOWN};
+    bool launch_prepare_pending_{false};
+    std::atomic_bool carriage_calibrate_pending_{false};
 };
 
 } // namespace rmcs_dart_guidance::manager
