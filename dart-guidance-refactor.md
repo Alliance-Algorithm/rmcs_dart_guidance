@@ -19,7 +19,6 @@
 
 - 真实堵转/行程/闭环与 YAML 整定
 - 视觉、manual、force
-- 底盘 4dof / 4z
 - 旧 `/dart_manager/*` 兼容层
 - `carriage_init` 完整标定（可预留 `SLIDE_STALL_CALIB`）
 
