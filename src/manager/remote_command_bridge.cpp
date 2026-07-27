@@ -35,6 +35,18 @@ public:
 
         register_output("/dart/manager/command", command_output_, std::string{});
 
+        chassis_zero_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
+            "/chassis/calibrate", rclcpp::QoS{0}, [this](std_msgs::msg::Int32::UniquePtr) {
+                chassis_zero_calibrate_pending_.store(true);
+                RCLCPP_INFO(logger_, "[RemoteCommandBridge] chassis zero calibrate requested");
+            });
+
+        chassis_level_subscription_ = create_subscription<std_msgs::msg::Int32>(
+            "/chassis/leveling", rclcpp::QoS{0}, [this](std_msgs::msg::Int32::UniquePtr) {
+                chassis_level_pending_.store(true);
+                RCLCPP_INFO(logger_, "[RemoteCommandBridge] chassis level requested");
+            });
+
         carriage_calibrate_subscription_ = create_subscription<std_msgs::msg::Int32>(
             "/carriage/calibrate", rclcpp::QoS{0}, [this](std_msgs::msg::Int32::UniquePtr) {
                 carriage_calibrate_pending_.store(true);
@@ -66,7 +78,7 @@ public:
         if (left == Switch::DOWN && right == Switch::DOWN) {
             emit_command("cancel");
             launch_prepare_pending_ = false;
-            carriage_calibrate_pending_.store(false);
+            clear_external_pending_requests();
             remember_switches(left, right);
             return;
         }
@@ -74,7 +86,7 @@ public:
         if (detect_recover_transition(left)) {
             emit_command("recover");
             launch_prepare_pending_ = false;
-            carriage_calibrate_pending_.store(false);
+            clear_external_pending_requests();
             RCLCPP_INFO(logger_, "[RemoteCommandBridge] recover");
             remember_switches(left, right);
             return;
@@ -84,12 +96,12 @@ public:
             if (launch_prepare_pending_) {
                 emit_command("dart-launch-cancel");
                 launch_prepare_pending_ = false;
-                carriage_calibrate_pending_.store(false);
+                clear_external_pending_requests();
                 RCLCPP_INFO(logger_, "[RemoteCommandBridge] dart-launch-cancel");
             } else {
                 emit_command("dart-launch-prepare");
                 launch_prepare_pending_ = true;
-                carriage_calibrate_pending_.store(false);
+                clear_external_pending_requests();
                 RCLCPP_INFO(logger_, "[RemoteCommandBridge] dart-launch-prepare");
             }
             remember_switches(left, right);
@@ -99,8 +111,24 @@ public:
         if (detect_fire_transition(left, right)) {
             emit_command("dart-fire");
             launch_prepare_pending_ = false;
-            carriage_calibrate_pending_.store(false);
+            clear_external_pending_requests();
             RCLCPP_INFO(logger_, "[RemoteCommandBridge] dart-fire");
+            remember_switches(left, right);
+            return;
+        }
+
+        if (chassis_zero_calibrate_pending_.exchange(false)) {
+            emit_command("dart-chassis-zero-calibrate");
+            launch_prepare_pending_ = false;
+            RCLCPP_INFO(logger_, "[RemoteCommandBridge] dart-chassis-zero-calibrate");
+            remember_switches(left, right);
+            return;
+        }
+
+        if (chassis_level_pending_.exchange(false)) {
+            emit_command("dart-chassis-level");
+            launch_prepare_pending_ = false;
+            RCLCPP_INFO(logger_, "[RemoteCommandBridge] dart-chassis-level");
             remember_switches(left, right);
             return;
         }
@@ -118,6 +146,12 @@ public:
 
 private:
     void emit_command(const std::string& cmd) { *command_output_ = cmd; }
+
+    void clear_external_pending_requests() {
+        chassis_zero_calibrate_pending_.store(false);
+        chassis_level_pending_.store(false);
+        carriage_calibrate_pending_.store(false);
+    }
 
     void remember_switches(rmcs_msgs::Switch left, rmcs_msgs::Switch right) {
         prev_left_ = left;
@@ -145,11 +179,15 @@ private:
     InputInterface<rmcs_msgs::Switch> switch_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
     OutputInterface<std::string> command_output_;
+    rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr chassis_zero_calibrate_subscription_;
+    rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr chassis_level_subscription_;
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr carriage_calibrate_subscription_;
 
     rmcs_msgs::Switch prev_left_{rmcs_msgs::Switch::UNKNOWN};
     rmcs_msgs::Switch prev_right_{rmcs_msgs::Switch::UNKNOWN};
     bool launch_prepare_pending_{false};
+    std::atomic_bool chassis_zero_calibrate_pending_{false};
+    std::atomic_bool chassis_level_pending_{false};
     std::atomic_bool carriage_calibrate_pending_{false};
 };
 

@@ -64,6 +64,8 @@ src/manager/
 - 左拨杆保持 `MIDDLE` 且右拨杆 `MIDDLE -> UP`：`dart-fire`
 
 ROS 命令来源：
+- `/chassis/calibrate` (`std_msgs/msg/Int32`)：收到消息后发布一次 `dart-chassis-zero-calibrate`
+- `/chassis/leveling` (`std_msgs/msg/Int32`)：收到消息后发布一次 `dart-chassis-level`
 - `/carriage/calibrate` (`std_msgs/msg/Int32`)：收到消息后发布一次 `dart-carriage-calibrate`
 
 内置保留命令包括：
@@ -72,9 +74,12 @@ ROS 命令来源：
 
 任务命令会在 `poll_command()` 中解析并生成对应的 `Task` 加入队列。
 正式预设任务命令为 `dart-init`、`dart-launch-prepare`、`dart-launch-cancel`、
-`dart-fire`、`dart-carriage-calibrate`。兼容别名仍保留：`launch_prepare` /
-`launch-prepare`、`launch_cancel` / `cancel_launch` / `unload`、`fire_preload` /
-`fire`、`carriage_init` / `carriage-init`。
+`dart-fire`、`dart-carriage-calibrate`、`dart-chassis-zero-calibrate`、
+`dart-chassis-level`。兼容别名仍保留：`launch_prepare` / `launch-prepare`、
+`launch_cancel` / `cancel_launch` / `unload`、`fire_preload` / `fire`、
+`carriage_init` / `carriage-init`、`chassis-zero-calibrate` /
+`chassis_zero_calibrate` / `zero_calibrate`、`chassis-level` / `chassis_level` /
+`level`。
 
 ### 4. 任务调度 (`Task` & `Action`)
 开发者可以通过派生 `Action` 或组装现有的 Action 创建 `Task`。组件层会先组装 `ManagerInputContext`、`ManagerOutputContext`、`ManagerSettings` 和 `ManagerRuntimeState`，再由 `task_factory` 统一创建具体任务，避免 `DartManager` 直接依赖所有自定义资源实现。

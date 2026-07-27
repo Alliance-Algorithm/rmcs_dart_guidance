@@ -34,7 +34,8 @@ public:
         , belt_resource_(*this, *command_component_, "/dart/belt")
         , trigger_resource_(*this, *command_component_, "/dart/trigger")
         , filling_resource_(*this, *command_component_, "/dart/filling")
-        , mechanism_resources_{belt_resource_, trigger_resource_, filling_resource_} {
+        , chassis_resource_(*this, *command_component_, "/dart/chassis")
+        , mechanism_resources_{belt_resource_, trigger_resource_, filling_resource_, chassis_resource_} {
 
         register_input("/dart/manager/command", command_input_, false);
         register_input("/remote/switch/left", switch_left_, false);
@@ -63,6 +64,7 @@ public:
         belt_resource_.bind_optional(logger_);
         trigger_resource_.bind_optional(logger_);
         filling_resource_.bind_optional(logger_);
+        chassis_resource_.bind_optional(logger_);
 
         if (!command_input_.ready()) {
             command_input_.make_and_bind_directly(std::string{});
@@ -231,12 +233,14 @@ private:
         belt_resource_.abort();
         trigger_resource_.abort();
         filling_resource_.abort();
+        chassis_resource_.abort();
     }
 
     void idle_all() {
         belt_resource_.idle();
         trigger_resource_.idle();
         filling_resource_.idle();
+        chassis_resource_.idle();
     }
 
     void submit_task(std::shared_ptr<Task> task) {
@@ -409,6 +413,7 @@ private:
     BeltResource belt_resource_;
     TriggerResource trigger_resource_;
     FillingResource filling_resource_;
+    ChassisResource chassis_resource_;
     MechanismResources mechanism_resources_;
 
     InputInterface<std::string> command_input_;

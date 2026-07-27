@@ -6,6 +6,8 @@
 #include <rmcs_dart_guidance/resource/mechanism_resources.hpp>
 #include <rmcs_dart_guidance/task/cancel_launch_task.hpp>
 #include <rmcs_dart_guidance/task/dart_carriage_calibrate_task.hpp>
+#include <rmcs_dart_guidance/task/dart_chassis_level_task.hpp>
+#include <rmcs_dart_guidance/task/dart_chassis_zero_calibrate_task.hpp>
 #include <rmcs_dart_guidance/task/dart_fire_task.hpp>
 #include <rmcs_dart_guidance/task/dart_init_task.hpp>
 #include <rmcs_dart_guidance/task/launch_preparation_task.hpp>
@@ -35,6 +37,15 @@ inline std::shared_ptr<Task> make_task(
     if (cmd == "dart-carriage-calibrate" || cmd == "dart_carriage_calibrate"
         || cmd == "carriage_init" || cmd == "carriage-init") {
         return std::make_shared<DartCarriageCalibrateTask>(mechanism_resources, settings);
+    }
+    if (cmd == "dart-chassis-zero-calibrate" || cmd == "dart_chassis_zero_calibrate"
+        || cmd == "chassis-zero-calibrate" || cmd == "chassis_zero_calibrate"
+        || cmd == "zero_calibrate") {
+        return std::make_shared<DartChassisZeroCalibrateTask>(mechanism_resources);
+    }
+    if (cmd == "dart-chassis-level" || cmd == "dart_chassis_level" || cmd == "chassis-level"
+        || cmd == "chassis_level" || cmd == "level") {
+        return std::make_shared<DartChassisLevelTask>(mechanism_resources);
     }
     return nullptr;
 }
