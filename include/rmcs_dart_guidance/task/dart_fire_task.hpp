@@ -50,7 +50,7 @@ public:
     }
 
 private:
-    static constexpr uint64_t kServoTimeoutTicks = 200;
+    static constexpr uint64_t kServoTimeoutTicks = 1000;
     static constexpr uint64_t kMechanismTimeoutTicks = 100000;
 };
 

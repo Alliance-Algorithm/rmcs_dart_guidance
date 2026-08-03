@@ -4,6 +4,7 @@
 #include <rmcs_dart_guidance/resource/chassis_resource.hpp>
 #include <rmcs_dart_guidance/resource/filling_resource.hpp>
 #include <rmcs_dart_guidance/resource/trigger_resource.hpp>
+#include <rmcs_dart_guidance/resource/yaw_resource.hpp>
 
 namespace rmcs_dart_guidance::manager {
 
@@ -12,6 +13,7 @@ struct MechanismResources {
     TriggerResource& trigger;
     FillingResource& filling;
     ChassisResource& chassis;
+    YawResource& yaw;
 };
 
 } // namespace rmcs_dart_guidance::manager

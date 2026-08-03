@@ -256,7 +256,7 @@ private:
         *tracking_ = tracking;
         ++target_seq_counter_;
         *target_seq_ = target_seq_counter_;
-        if (count++ == 10) {
+        if (count++ == 100) {
             RCLCPP_INFO(
                 logger_, "[target position]: (%d,%d)", target_position.x, target_position.y);
             count = 0;

@@ -33,6 +33,8 @@ struct ManagerRuntimeState {
 struct ManagerSettings {
     std::array<double, 4> launch_carriage_positions{};
     bool launch_carriage_positions_configured{false};
+    std::array<double, 4> vision_aim_target_setpoints{};
+    bool vision_aim_target_setpoints_configured{false};
 };
 
 struct ManagerQueuedTaskInfo {

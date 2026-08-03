@@ -75,11 +75,11 @@ ROS 命令来源：
 任务命令会在 `poll_command()` 中解析并生成对应的 `Task` 加入队列。
 正式预设任务命令为 `dart-init`、`dart-launch-prepare`、`dart-launch-cancel`、
 `dart-fire`、`dart-carriage-calibrate`、`dart-chassis-zero-calibrate`、
-`dart-chassis-level`。兼容别名仍保留：`launch_prepare` / `launch-prepare`、
+`dart-chassis-level`、`yaw-command:vision-aim`。兼容别名仍保留：`launch_prepare` / `launch-prepare`、
 `launch_cancel` / `cancel_launch` / `unload`、`fire_preload` / `fire`、
 `carriage_init` / `carriage-init`、`chassis-zero-calibrate` /
 `chassis_zero_calibrate` / `zero_calibrate`、`chassis-level` / `chassis_level` /
-`level`。
+`level`、`vision-aim` / `vision_aim` / `dart-vision-aim` / `dart_vision_aim`。
 
 ### 4. 任务调度 (`Task` & `Action`)
 开发者可以通过派生 `Action` 或组装现有的 Action 创建 `Task`。组件层会先组装 `ManagerInputContext`、`ManagerOutputContext`、`ManagerSettings` 和 `ManagerRuntimeState`，再由 `task_factory` 统一创建具体任务，避免 `DartManager` 直接依赖所有自定义资源实现。
@@ -99,5 +99,7 @@ ROS 命令来源：
 - `recover` 会将 `fire_count` 清零
 
 滑台发射位置由 `dart_manager` 参数 `launch_carriage_position_1..4` 配置，单位为相对滑台标定零点的 encoder 值。`dart-carriage-calibrate` 在标定完成后 goto 位置 1；`dart-fire` 在释放扳机后 goto 下一发位置，`fire_count=0/1/>=2` 分别对应位置 2/3/4，第 4 发及之后重复位置 4，goto 成功后才递增 `fire_count`。
+
+视觉 yaw 瞄准位置由 `dart_manager` 参数 `vision_aim_target_setpoint_1..4` 配置，单位为目标像素 X。`yaw-command:vision-aim` 根据当前 `fire_count` 选择第 1-4 个 setpoint，第 4 发及之后重复 setpoint 4。
 
 任务执行失败时会触发 `on_task_failure()`，该函数会将输出置零，保证系统安全，并将状态机置为 `ERROR`。

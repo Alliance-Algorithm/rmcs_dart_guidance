@@ -9,6 +9,8 @@
 #include <rmcs_dart_guidance/task/dart_chassis_level_task.hpp>
 #include <rmcs_dart_guidance/task/dart_chassis_zero_calibrate_task.hpp>
 #include <rmcs_dart_guidance/task/dart_fire_task.hpp>
+#include <rmcs_dart_guidance/task/dart_vision_aim_task.hpp>
+#include <rmcs_dart_guidance/task/dart_game_control_task.hpp>
 #include <rmcs_dart_guidance/task/dart_init_task.hpp>
 #include <rmcs_dart_guidance/task/launch_preparation_task.hpp>
 
@@ -25,7 +27,7 @@ inline std::shared_ptr<Task> make_task(
     }
     if (cmd == "dart-launch-prepare" || cmd == "dart_launch_prepare" || cmd == "launch_prepare"
         || cmd == "launch-prepare") {
-        return std::make_shared<DartLaunchPrepareTask>(mechanism_resources, runtime_state);
+        return std::make_shared<DartLaunchPrepareTask>(mechanism_resources, runtime_state, settings);
     }
     if (cmd == "dart-launch-cancel" || cmd == "dart_launch_cancel" || cmd == "launch_cancel"
         || cmd == "cancel_launch" || cmd == "unload") {
@@ -33,6 +35,14 @@ inline std::shared_ptr<Task> make_task(
     }
     if (cmd == "dart-fire" || cmd == "dart_fire" || cmd == "fire_preload" || cmd == "fire") {
         return std::make_shared<DartFireTask>(mechanism_resources, runtime_state, settings);
+    }
+    if (cmd == "dart-game-control" || cmd == "dart_game_control" || cmd == "game-control"
+        || cmd == "game_control") {
+        return std::make_shared<DartGameControlTask>(mechanism_resources, runtime_state, settings);
+    }
+    if (cmd == "yaw-command:vision-aim" || cmd == "vision-aim" || cmd == "vision_aim"
+        || cmd == "dart-vision-aim" || cmd == "dart_vision_aim") {
+        return std::make_shared<DartVisionAimTask>(mechanism_resources, runtime_state, settings);
     }
     if (cmd == "dart-carriage-calibrate" || cmd == "dart_carriage_calibrate"
         || cmd == "carriage_init" || cmd == "carriage-init") {

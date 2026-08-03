@@ -1,24 +1,27 @@
 #include <atomic>
+#include <chrono>
+#include <optional>
 #include <string>
 
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
+#include <rmcs_msgs/game_stage.hpp>
 #include <rmcs_msgs/switch.hpp>
 #include <std_msgs/msg/int32.hpp>
 
 namespace rmcs_dart_guidance::manager {
 
 // RemoteCommandBridge
-//   将遥控器 DR16 输入翻译为 DartManager 可识别的离散命令。
+//   将遥控器 DR16 输入翻译为 DartManager 可识别的离散命令，并负责比赛控制触发。
 
 /* 键位映射：
-    双下：全部停止 -> "cancel"
-    左拨杆 DOWN->MIDDLE：恢复 -> "recover"
-    左拨杆保持 MIDDLE，右拨杆 MIDDLE->DOWN：发射准备/取消准备 toggle
-    左拨杆保持 MIDDLE，右拨杆 MIDDLE->UP：发射 -> "dart-fire"
-
+     双下：全部停止 -> "cancel"
+     左拨杆 DOWN->MIDDLE：恢复 -> "recover"
+     左拨杆保持 MIDDLE，右拨杆 MIDDLE->DOWN：发射准备/取消准备 toggle
+     左拨杆保持 MIDDLE，右拨杆 MIDDLE->UP：发射 -> "dart-fire"
+     左拨杆 UP：手动模式，抑制所有手柄命令（比赛任务不受影响）
 */
 
 class RemoteCommandBridge
@@ -32,6 +35,9 @@ public:
         , logger_(get_logger()) {
         register_input("/remote/switch/left", switch_left_, false);
         register_input("/remote/switch/right", switch_right_, false);
+        register_input("/remote/rotary_knob_switch", rotary_knob_switch_, false);
+        register_input("/referee/game/stage", game_stage_, false);
+        register_input("/referee/dart/remaining_time", dart_remaining_time_, false);
 
         register_output("/dart/manager/command", command_output_, std::string{});
 
@@ -65,6 +71,19 @@ public:
             switch_right_.make_and_bind_directly(rmcs_msgs::Switch::UNKNOWN);
             RCLCPP_WARN(logger_, "Failed to fetch \"/remote/switch/right\". Set to UNKNOWN.");
         }
+        if (!rotary_knob_switch_.ready()) {
+            rotary_knob_switch_.make_and_bind_directly(rmcs_msgs::Switch::UNKNOWN);
+            RCLCPP_WARN(
+                logger_, "Failed to fetch \"/remote/rotary_knob_switch\". Set to UNKNOWN.");
+        }
+        if (!game_stage_.ready()) {
+            game_stage_.make_and_bind_directly(rmcs_msgs::GameStage::UNKNOWN);
+            RCLCPP_WARN(logger_, "Failed to fetch \"/referee/game/stage\". Set to UNKNOWN.");
+        }
+        if (!dart_remaining_time_.ready()) {
+            dart_remaining_time_.make_and_bind_directly(uint8_t{0});
+            RCLCPP_WARN(logger_, "Failed to fetch \"/referee/dart/remaining_time\". Set to 0.");
+        }
     }
 
     void update() override {
@@ -72,10 +91,23 @@ public:
 
         emit_command("");
 
+        if (check_game_control_triggers()) {
+            remember_switches(*switch_left_, *switch_right_);
+            return;
+        }
+
+        const bool manual_mode = switch_left_.ready() && *switch_left_ == Switch::UP;
+        if (manual_mode) {
+            clear_external_pending_requests();
+            remember_switches(*switch_left_, *switch_right_);
+            return;
+        }
+
         const auto left = *switch_left_;
         const auto right = *switch_right_;
+        const bool game_started = *game_stage_ == GameStage::STARTED;
 
-        if (left == Switch::DOWN && right == Switch::DOWN) {
+        if (!game_started && left == Switch::DOWN && right == Switch::DOWN) {
             emit_command("cancel");
             launch_prepare_pending_ = false;
             clear_external_pending_requests();
@@ -174,10 +206,55 @@ private:
             && current_right == rmcs_msgs::Switch::UP;
     }
 
+    bool check_game_control_triggers() {
+        using namespace rmcs_msgs;
+
+        const bool ref_condition = game_stage_.ready() && *game_stage_ == GameStage::STARTED
+                                && dart_remaining_time_.ready() && *dart_remaining_time_ > 15;
+        if (ref_condition && !referee_condition_was_true_) {
+            referee_condition_was_true_ = true;
+            clear_external_pending_requests();
+            emit_command("dart-game-control");
+            RCLCPP_INFO(logger_, "[RemoteCommandBridge] game control triggered by referee");
+            return true;
+        }
+        referee_condition_was_true_ = ref_condition;
+
+        const bool rotary_condition =
+            switch_left_.ready() && switch_right_.ready() && rotary_knob_switch_.ready()
+            && *switch_left_ == Switch::MIDDLE && *switch_right_ == Switch::MIDDLE
+            && *rotary_knob_switch_ == Switch::UP;
+
+        const auto now = std::chrono::steady_clock::now();
+        if (!rotary_condition) {
+            rotary_up_since_.reset();
+            rotary_hold_consumed_ = false;
+            return false;
+        }
+
+        if (!rotary_up_since_) {
+            rotary_up_since_ = now;
+            return false;
+        }
+
+        if (!rotary_hold_consumed_ && (now - *rotary_up_since_) >= kRotaryTriggerHoldDuration) {
+            rotary_hold_consumed_ = true;
+            clear_external_pending_requests();
+            emit_command("dart-game-control");
+            RCLCPP_INFO(logger_, "[RemoteCommandBridge] game control triggered by rotary");
+            return true;
+        }
+
+        return false;
+    }
+
     rclcpp::Logger logger_;
 
     InputInterface<rmcs_msgs::Switch> switch_left_;
     InputInterface<rmcs_msgs::Switch> switch_right_;
+    InputInterface<rmcs_msgs::Switch> rotary_knob_switch_;
+    InputInterface<rmcs_msgs::GameStage> game_stage_;
+    InputInterface<uint8_t> dart_remaining_time_;
     OutputInterface<std::string> command_output_;
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr chassis_zero_calibrate_subscription_;
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr chassis_level_subscription_;
@@ -189,6 +266,12 @@ private:
     std::atomic_bool chassis_zero_calibrate_pending_{false};
     std::atomic_bool chassis_level_pending_{false};
     std::atomic_bool carriage_calibrate_pending_{false};
+
+    bool referee_condition_was_true_{false};
+    std::optional<std::chrono::steady_clock::time_point> rotary_up_since_;
+    bool rotary_hold_consumed_{false};
+
+    static constexpr auto kRotaryTriggerHoldDuration = std::chrono::seconds{3};
 };
 
 } // namespace rmcs_dart_guidance::manager

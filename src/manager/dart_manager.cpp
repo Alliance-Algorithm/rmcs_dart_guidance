@@ -16,7 +16,6 @@
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <rmcs_executor/component.hpp>
-#include <rmcs_msgs/switch.hpp>
 
 namespace rmcs_dart_guidance::manager {
 
@@ -35,15 +34,16 @@ public:
         , trigger_resource_(*this, *command_component_, "/dart/trigger")
         , filling_resource_(*this, *command_component_, "/dart/filling")
         , chassis_resource_(*this, *command_component_, "/dart/chassis")
-        , mechanism_resources_{belt_resource_, trigger_resource_, filling_resource_, chassis_resource_} {
+        , yaw_resource_(*this, *command_component_, "/dart/yaw")
+        , mechanism_resources_{
+              belt_resource_, trigger_resource_, filling_resource_, chassis_resource_,
+              yaw_resource_} {
 
         register_input("/dart/manager/command", command_input_, false);
-        register_input("/remote/switch/left", switch_left_, false);
         register_output("/dart/manager/fire_count", fire_count_output_, uint32_t{0});
         register_output(
             "/dart/manager/debug/lifecycle_state", debug_lifecycle_state_output_,
             std::string{to_string(ManagerLifecycleState::IDLE)});
-        register_output("/dart/manager/debug/manual_mode", debug_manual_mode_output_, false);
         register_output(
             "/dart/manager/debug/current_task", debug_current_task_output_, std::string{});
         register_output(
@@ -55,6 +55,7 @@ public:
             std::optional<ManagerLastErrorInfo>{});
 
         load_launch_carriage_positions();
+        load_vision_aim_target_setpoints();
         reset_fire_count();
         sync_debug_outputs();
         RCLCPP_INFO(logger_, "[DartManager] initialized (resource-owned mechanism IO)");
@@ -65,20 +66,16 @@ public:
         trigger_resource_.bind_optional(logger_);
         filling_resource_.bind_optional(logger_);
         chassis_resource_.bind_optional(logger_);
+        yaw_resource_.bind_optional(logger_);
 
         if (!command_input_.ready()) {
             command_input_.make_and_bind_directly(std::string{});
             RCLCPP_WARN(logger_, "Failed to fetch \"/dart/manager/command\". Set to empty string.");
         }
-        if (!switch_left_.ready()) {
-            switch_left_.make_and_bind_directly(rmcs_msgs::Switch::UNKNOWN);
-            RCLCPP_WARN(logger_, "Failed to fetch \"/remote/switch/left\". Set to UNKNOWN.");
-        }
         sync_debug_outputs();
     }
 
     void update() override {
-        update_manual_mode();
         poll_commands();
 
         if (defer_dispatch_once_) {
@@ -88,11 +85,6 @@ public:
         }
 
         if (runtime_state_.lifecycle_state == ManagerLifecycleState::ERROR) {
-            sync_debug_outputs();
-            return;
-        }
-
-        if (manual_mode_) {
             sync_debug_outputs();
             return;
         }
@@ -146,12 +138,6 @@ private:
             return;
         }
 
-        if (manual_mode_) {
-            RCLCPP_WARN(
-                logger_, "[DartManager] ignored command '%s' while manual_mode=true", cmd.c_str());
-            return;
-        }
-
         if (runtime_state_.lifecycle_state == ManagerLifecycleState::ERROR) {
             RCLCPP_WARN(
                 logger_, "[DartManager] ignored command '%s' while lifecycle_state=ERROR",
@@ -166,33 +152,6 @@ private:
         } else {
             RCLCPP_WARN(logger_, "[DartManager] unknown command: '%s'", cmd.c_str());
         }
-    }
-
-    void update_manual_mode() {
-        const bool next_manual_mode =
-            switch_left_.ready() && *switch_left_ == rmcs_msgs::Switch::UP;
-        if (next_manual_mode == manual_mode_) {
-            return;
-        }
-
-        manual_mode_ = next_manual_mode;
-        if (manual_mode_) {
-            enter_manual_mode();
-        } else {
-            RCLCPP_INFO(logger_, "[DartManager] manual mode exited");
-        }
-    }
-
-    void enter_manual_mode() {
-        if (runtime_state_.lifecycle_state == ManagerLifecycleState::ERROR) {
-            RCLCPP_WARN(logger_, "[DartManager] manual mode entered while lifecycle_state=ERROR");
-            return;
-        }
-
-        cancel_task_state(task_state_, ActionCancelReason::NORMAL_COMPLETION);
-        idle_all();
-        transition_to(ManagerLifecycleState::IDLE);
-        RCLCPP_INFO(logger_, "[DartManager] manual mode entered -> tasks cleared, lifecycle=IDLE");
     }
 
     void cancel_all() {
@@ -228,12 +187,12 @@ private:
         }
     }
 
-    // Hold ABORT until recover() writes IDLE.
     void abort_all() {
         belt_resource_.abort();
         trigger_resource_.abort();
         filling_resource_.abort();
         chassis_resource_.abort();
+        yaw_resource_.abort();
     }
 
     void idle_all() {
@@ -241,6 +200,7 @@ private:
         trigger_resource_.idle();
         filling_resource_.idle();
         chassis_resource_.idle();
+        yaw_resource_.idle();
     }
 
     void submit_task(std::shared_ptr<Task> task) {
@@ -369,7 +329,6 @@ private:
     void sync_debug_outputs() {
         *fire_count_output_ = runtime_state_.fire_count;
         *debug_lifecycle_state_output_ = to_string(runtime_state_.lifecycle_state);
-        *debug_manual_mode_output_ = manual_mode_;
         *debug_current_task_output_ = active_task_name();
         *debug_current_action_output_ = active_action_name();
         *debug_queue_output_ = build_queue_snapshot();
@@ -400,8 +359,29 @@ private:
         settings_.launch_carriage_positions_configured = configured;
     }
 
-    // Partner carries mechanism command outputs (breaks cycles like hardware boards).
-    // Nested like OmniInfantry::InfantryCommand; update is empty (commands written by main update).
+    void load_vision_aim_target_setpoints() {
+        static constexpr std::array<const char*, 4> kParameterNames{
+            "vision_aim_target_setpoint_1", "vision_aim_target_setpoint_2",
+            "vision_aim_target_setpoint_3", "vision_aim_target_setpoint_4"};
+
+        bool configured = true;
+        for (std::size_t i = 0; i < kParameterNames.size(); ++i) {
+            const char* name = kParameterNames[i];
+            double setpoint = 0.0;
+            if (!has_parameter(name) || !get_parameter(name, setpoint)
+                || !std::isfinite(setpoint)) {
+                RCLCPP_ERROR(
+                    logger_,
+                    "[DartManager] invalid or missing vision aim target setpoint parameter '%s'",
+                    name);
+                configured = false;
+                continue;
+            }
+            settings_.vision_aim_target_setpoints[i] = setpoint;
+        }
+        settings_.vision_aim_target_setpoints_configured = configured;
+    }
+
     class CommandComponent : public rmcs_executor::Component {
     public:
         void update() override {}
@@ -414,13 +394,12 @@ private:
     TriggerResource trigger_resource_;
     FillingResource filling_resource_;
     ChassisResource chassis_resource_;
+    YawResource yaw_resource_;
     MechanismResources mechanism_resources_;
 
     InputInterface<std::string> command_input_;
-    InputInterface<rmcs_msgs::Switch> switch_left_;
     OutputInterface<uint32_t> fire_count_output_;
     OutputInterface<std::string> debug_lifecycle_state_output_;
-    OutputInterface<bool> debug_manual_mode_output_;
     OutputInterface<std::string> debug_current_task_output_;
     OutputInterface<std::string> debug_current_action_output_;
     OutputInterface<std::vector<ManagerQueuedTaskInfo>> debug_queue_output_;
@@ -430,7 +409,6 @@ private:
     ManagerRuntimeState runtime_state_{};
     ManagerSettings settings_{};
     TaskState task_state_{};
-    bool manual_mode_{false};
     bool defer_dispatch_once_{false};
 };
 

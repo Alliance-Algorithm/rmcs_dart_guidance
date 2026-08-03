@@ -36,6 +36,9 @@ public:
         image_type_ = get_parameter("image_type").as_string();
         timer_ = this->create_wall_timer(
             std::chrono::milliseconds(static_cast<int>(1000 / publish_freq_)), [this]() {
+                if (!input_image_.ready() || input_image_->empty()) {
+                    return;
+                }
                 sensor_msgs::msg::Image publish_image_msg;
                 cv_bridge::CvImage cv_image(std_msgs::msg::Header(), image_type_, *input_image_);
                 publish_image_msg = *cv_image.toImageMsg();
