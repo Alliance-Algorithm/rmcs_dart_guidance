@@ -9,18 +9,19 @@ RMCS 框架插件组件，负责：
 ## 当前目录结构
 
 ```text
+include/rmcs_dart_guidance/
+├── msg/          # 命令/状态枚举
+├── resource/     # 机构 IO 包装
+├── action/       # 具体动作
+└── task/         # 业务任务
+
 src/manager/
-├── core/
-│   ├── components/   # 组件入口：DartManager / RemoteCommandBridge
-│   └── runtime/      # 通用运行时：Action / ActionSequence / ActionSet / Task
-└── resources/
-    ├── actions/      # 具体机械动作
-    ├── tasks/        # 由多个 action 组装出的业务 task
-    └── task_factory.*# 命令到 task 的统一装配入口
+├── runtime/                  # Action 运行时 + task_factory
+├── dart_manager.cpp          # 组件入口
+└── remote_command_bridge.cpp # 命令桥接
 ```
 
-重构后的依赖方向为：`core/components -> resources/task_factory -> resources/tasks|actions -> core/runtime`。
-这样 `manager` 的核心调度逻辑与自定义动作资源分离，新增动作/任务时不需要再把实现塞进组件入口文件。
+依赖方向：`dart_manager -> runtime/task_factory -> task/action -> resource -> msg`。
 
 ## 状态机转换图
 
@@ -59,44 +60,46 @@ src/manager/
 遥控器映射如下：
 - 双下：`cancel`
 - 左拨杆 `DOWN -> MIDDLE`：`recover`
-- 左拨杆进入 `UP`：`manual_control`
-- 左拨杆保持 `MIDDLE` 且右拨杆 `MIDDLE -> DOWN`：`launch_prepare` / `launch_prepare_with_vision` / `launch_cancel`
-- 左拨杆保持 `MIDDLE` 且右拨杆 `MIDDLE -> UP`：`fire_preload`
+- 左拨杆保持 `MIDDLE` 且右拨杆 `MIDDLE -> DOWN`：`dart-launch-prepare`；若上一次已发布发射准备且尚未发射/取消/recover，则发布 `dart-launch-cancel`
+- 左拨杆保持 `MIDDLE` 且右拨杆 `MIDDLE -> UP`：`dart-fire`
+
+ROS 命令来源：
+- `/chassis/calibrate` (`std_msgs/msg/Int32`)：收到消息后发布一次 `dart-chassis-zero-calibrate`
+- `/chassis/leveling` (`std_msgs/msg/Int32`)：收到消息后发布一次 `dart-chassis-level`
+- `/carriage/calibrate` (`std_msgs/msg/Int32`)：收到消息后发布一次 `dart-carriage-calibrate`
 
 内置保留命令包括：
 - `cancel`：取消当前任务并清空任务队列。
 - `recover`：从 `ERROR` 状态恢复到 `IDLE`。
 
-其他任务命令（如 `launch_prepare`, `fire_preload`）会在 `poll_command()` 中解析并生成对应的 `Task` 加入队列。
-当 `vision_enable=true` 时，遥控发射准备入口会发出 `launch_prepare_with_vision`；否则发出 `launch_prepare`。
-
-`carriage_init` / `carriage-init` 仍可通过 `/dart/manager/command` 触发，但语义已经是完整标定流程：
-- 连续 3 次低速逼近机械限位并记录编码器原点样本
-- 对 3 次样本求平均，写回新的参考零点
-- 按 `UP` 方向运行到 `carriage_calibration_parking_angle` 定义的校准停靠位
-
-ROS 话题 `/carriage_position/calibrate` 收到非 0 时，会先由 `RemoteCommandBridge` 转发为
-`carriage_init` 命令，再进入同一个完整标定 task。
-
-`launch_prepare_with_vision` 当前的瞄准语义为：
-- yaw：继续使用视觉识别目标的像素 x 误差
-- pitch：使用 `vision_aim.shot_profiles.N.pitch_angle` 与 `/imu/catapult_pitch_angle` 的角度误差
-- carriage：仍由 `trigger_carriage_position_aim` 独立控制，不参与上述修改
+任务命令会在 `poll_command()` 中解析并生成对应的 `Task` 加入队列。
+正式预设任务命令为 `dart-init`、`dart-launch-prepare`、`dart-launch-cancel`、
+`dart-fire`、`dart-carriage-calibrate`、`dart-chassis-zero-calibrate`、
+`dart-chassis-level`、`yaw-command:vision-aim`。兼容别名仍保留：`launch_prepare` / `launch-prepare`、
+`launch_cancel` / `cancel_launch` / `unload`、`fire_preload` / `fire`、
+`carriage_init` / `carriage-init`、`chassis-zero-calibrate` /
+`chassis_zero_calibrate` / `zero_calibrate`、`chassis-level` / `chassis_level` /
+`level`、`vision-aim` / `vision_aim` / `dart-vision-aim` / `dart_vision_aim`。
 
 ### 4. 任务调度 (`Task` & `Action`)
 开发者可以通过派生 `Action` 或组装现有的 Action 创建 `Task`。组件层会先组装 `ManagerInputContext`、`ManagerOutputContext`、`ManagerSettings` 和 `ManagerRuntimeState`，再由 `task_factory` 统一创建具体任务，避免 `DartManager` 直接依赖所有自定义资源实现。
 
-`ActionSet` 仍然作为通用 runtime 能力保留，但当前 manager 主流程主要使用顺序 `Task` 和 `ActionSequence`。
+基础预设任务使用顺序 `Task` / `ActionSequence`，需要并行 all-success 时嵌套
+`ActionSet`。
 
 当前 motor 控制有三类退出语义：
 - `WAIT_ZERO_VELOCITY`：退出后进入零速闭环等待。
 - `WAIT_HOLD_TORQUE`：退出后进入 `WAIT + hold torque`，保持同步带对滑块的压紧状态，直到下一条 belt 指令覆盖。
 - `KEEP`：退出后保持当前输出不变，直到下一条命令覆盖。
 
-当前 manager 还会通过 `/dart/manager/fire_count` 输出成功完成 `fire_preload` 的次数。
+当前 manager 还会通过 `/dart/manager/fire_count` 输出成功完成 `dart-fire` 的次数。
 任务分支使用 `fire_count` 判断是否为首发：
 - `fire_count == 0`：首发流程
 - `fire_count > 0`：后续流程
 - `recover` 会将 `fire_count` 清零
+
+滑台发射位置由 `dart_manager` 参数 `launch_carriage_position_1..4` 配置，单位为相对滑台标定零点的 encoder 值。`dart-carriage-calibrate` 在标定完成后 goto 位置 1；`dart-fire` 在释放扳机后 goto 下一发位置，`fire_count=0/1/>=2` 分别对应位置 2/3/4，第 4 发及之后重复位置 4，goto 成功后才递增 `fire_count`。
+
+视觉 yaw 瞄准位置由 `dart_manager` 参数 `vision_aim_target_setpoint_1..4` 配置，单位为目标像素 X。`yaw-command:vision-aim` 根据当前 `fire_count` 选择第 1-4 个 setpoint，第 4 发及之后重复 setpoint 4。
 
 任务执行失败时会触发 `on_task_failure()`，该函数会将输出置零，保证系统安全，并将状态机置为 `ERROR`。

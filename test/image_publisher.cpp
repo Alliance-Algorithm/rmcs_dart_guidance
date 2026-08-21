@@ -21,23 +21,29 @@ class ImagePublisher
     , public rclcpp::Node {
 public:
     ImagePublisher()
-        : Node(get_component_name(), rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true))
+        : Node(
+              get_component_name(),
+              rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true))
         , logger_(get_logger()) {
 
         register_input(get_parameter("Interface_name").as_string(), input_image_);
 
-        image_publisher_ =
-            this->create_publisher<sensor_msgs::msg::Image>(get_parameter("topic_name").as_string(), 1000);
+        image_publisher_ = this->create_publisher<sensor_msgs::msg::Image>(
+            get_parameter("topic_name").as_string(), 1000);
 
         publish_freq_ = get_parameter("publish_freq").as_double();
         publish_freq_ = MAX(0, MIN(publish_freq_, 1000));
-        image_type_   = get_parameter("image_type").as_string();
-        timer_ = this->create_wall_timer(std::chrono::milliseconds(static_cast<int>(1000 / publish_freq_)), [this]() {
-            sensor_msgs::msg::Image publish_image_msg;
-            cv_bridge::CvImage cv_image(std_msgs::msg::Header(), image_type_, *input_image_);
-            publish_image_msg = *cv_image.toImageMsg();
-            image_publisher_->publish(publish_image_msg);
-        });
+        image_type_ = get_parameter("image_type").as_string();
+        timer_ = this->create_wall_timer(
+            std::chrono::milliseconds(static_cast<int>(1000 / publish_freq_)), [this]() {
+                if (!input_image_.ready() || input_image_->empty()) {
+                    return;
+                }
+                sensor_msgs::msg::Image publish_image_msg;
+                cv_bridge::CvImage cv_image(std_msgs::msg::Header(), image_type_, *input_image_);
+                publish_image_msg = *cv_image.toImageMsg();
+                image_publisher_->publish(publish_image_msg);
+            });
     }
 
     void update() override {}
@@ -51,7 +57,7 @@ private:
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr image_publisher_;
     InputInterface<cv::Mat> input_image_;
 };
-} // namespace rmcs_dart_guide
+} // namespace rmcs_dart_guidance
 
 #include <pluginlib/class_list_macros.hpp>
 

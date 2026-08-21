@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <filesystem>
@@ -7,23 +8,21 @@
 #include <mutex>
 #include <opencv2/opencv.hpp>
 #include <queue>
+#include <rclcpp/logger.hpp>
+#include <rclcpp/logging.hpp>
 #include <sstream>
 #include <string>
 #include <thread>
-#include <atomic>
-#include <rclcpp/logger.hpp>
-#include <rclcpp/logging.hpp>
 #include <utility>
 
 namespace rmcs_dart_guidance {
 
 class ImageRecorder {
 public:
-    explicit ImageRecorder(rclcpp::Logger logger) : logger_(std::move(logger)) {}
+    explicit ImageRecorder(rclcpp::Logger logger)
+        : logger_(std::move(logger)) {}
 
-    ~ImageRecorder() {
-        stop();
-    }
+    ~ImageRecorder() { stop(); }
 
     bool Init(const std::string& save_directory) {
         save_directory_ = save_directory;
@@ -37,7 +36,9 @@ public:
                 return false;
             }
         } catch (const std::exception& e) {
-            RCLCPP_ERROR(logger_, "Failed to create save directory %s: %s", save_directory_.c_str(), e.what());
+            RCLCPP_ERROR(
+                logger_, "Failed to create save directory %s: %s", save_directory_.c_str(),
+                e.what());
             return false;
         }
 
@@ -47,7 +48,8 @@ public:
     }
 
     void push_image(const cv::Mat& image, const std::string& type) {
-        if (!is_running_) return;
+        if (!is_running_)
+            return;
 
         std::lock_guard<std::mutex> lock(queue_mutex_);
         if (job_queue_.size() < max_queue_size_) {
@@ -122,8 +124,9 @@ private:
             localtime_r(&time_t, &tm_buf);
 
             std::ostringstream oss;
-            oss << save_directory_ << "/" << job.type << "_" << std::put_time(&tm_buf, "%Y%m%d_%H%M%S")
-                << "_" << std::setw(4) << std::setfill('0') << save_counter_++ << ".jpg";
+            oss << save_directory_ << "/" << job.type << "_"
+                << std::put_time(&tm_buf, "%Y%m%d_%H%M%S") << "_" << std::setw(4)
+                << std::setfill('0') << save_counter_++ << ".jpg";
 
             std::string filename = oss.str();
             bool success = cv::imwrite(filename, job.image);

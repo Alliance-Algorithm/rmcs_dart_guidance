@@ -3,7 +3,7 @@
 #include "tracker.hpp"
 #include <atomic>
 #include <chrono>
-#include <hikcamera/image_capturer.hpp>
+#include <hikcamera/capturer.hpp>
 #include <memory>
 #include <mutex>
 #include <opencv2/core/hal/interface.h>
@@ -18,6 +18,7 @@
 #include <rclcpp/node_options.hpp>
 #include <rmcs_executor/component.hpp>
 #include <thread>
+#include <tuple>
 
 namespace rmcs_dart_guidance {
 
@@ -31,10 +32,9 @@ public:
               rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true))
         , logger_(get_logger()) {
 
-        camera_profile_.invert_image = get_parameter("invert_image").as_bool();
-        camera_profile_.exposure_time =
-            std::chrono::microseconds(get_parameter("exposure_time").as_int());
-        camera_profile_.gain = static_cast<float>(get_parameter("gain").as_double());
+        camera_config_.invert_image = get_parameter("invert_image").as_bool();
+        camera_config_.exposure_us = static_cast<float>(get_parameter("exposure_time").as_int());
+        camera_config_.gain = static_cast<float>(get_parameter("gain").as_double());
 
         lower_limit_default_ = cv::Scalar(
             get_parameter("L_H").as_double(), get_parameter("L_S").as_double(),
@@ -58,7 +58,10 @@ public:
                                   ? get_parameter("save_processed_image").as_bool()
                                   : false;
 
-        image_capture_ = std::make_unique<hikcamera::ImageCapturer>(camera_profile_);
+        image_capture_ = std::make_unique<hikcamera::Camera>();
+        if (auto result = image_capture_->initialize(camera_config_); !result) {
+            RCLCPP_ERROR(logger_, "Failed to initialize camera: %s", result.error().c_str());
+        }
 
         identifier_.set_default_limit(lower_limit_default_, upper_limit_default_);
         identifier_.Init();
@@ -97,6 +100,9 @@ public:
         if (camera_thread_.joinable()) {
             camera_thread_.join();
         }
+        if (image_capture_ && image_capture_->connected()) {
+            std::ignore = image_capture_->disconnect();
+        }
     }
 
     void update() override {}
@@ -115,7 +121,15 @@ private:
             try {
                 frame_counter++;
 
-                cv::Mat raw_image = image_capture_->read();
+                auto image_result = image_capture_->read_image();
+                if (!image_result) {
+                    RCLCPP_WARN_THROTTLE(
+                        logger_, *this->get_clock(), 1000, "Failed to read image: %s",
+                        image_result.error().c_str());
+                    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                    continue;
+                }
+                cv::Mat raw_image = std::move(*image_result);
                 if (raw_image.empty()) {
                     RCLCPP_WARN_THROTTLE(
                         logger_, *this->get_clock(), 1000, "Received empty image from camera");
@@ -242,7 +256,7 @@ private:
         *tracking_ = tracking;
         ++target_seq_counter_;
         *target_seq_ = target_seq_counter_;
-        if (count++ == 10) {
+        if (count++ == 100) {
             RCLCPP_INFO(
                 logger_, "[target position]: (%d,%d)", target_position.x, target_position.y);
             count = 0;
@@ -280,8 +294,8 @@ private:
 
     cv::Scalar lower_limit_default_, upper_limit_default_;
 
-    hikcamera::ImageCapturer::CameraProfile camera_profile_;
-    std::unique_ptr<hikcamera::ImageCapturer> image_capture_;
+    hikcamera::Config camera_config_;
+    std::unique_ptr<hikcamera::Camera> image_capture_;
 
     OutputInterface<cv::Mat> camera_image_;
     OutputInterface<cv::Mat> display_image_;

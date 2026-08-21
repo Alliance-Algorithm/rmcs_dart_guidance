@@ -3,7 +3,7 @@ project(rmcs_dart_guidance)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_BUILD_TYPE "Release")
 add_compile_options(-Wall -Wextra -Wpedantic -O3)
 
@@ -33,6 +33,7 @@ find_package(hikcamera REQUIRED)
 set(RMCS_MSGS_SOURCE_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/../rmcs_msgs/include")
 
 include_directories(
+  ${PROJECT_SOURCE_DIR}/include/
   ${PROJECT_SOURCE_DIR}/src/
   ${PROJECT_SOURCE_DIR}/test/
   ${RMCS_MSGS_SOURCE_INCLUDE_DIR}
@@ -101,8 +102,16 @@ install(
     lib/
 )
 
+install(
+  DIRECTORY include/
+  DESTINATION include
+)
+
 pluginlib_export_plugin_description_file(
   rmcs_executor plugins.xml
 )
+
+ament_export_include_directories(include)
+ament_export_dependencies(rclcpp rmcs_executor rmcs_msgs)
 
 ament_package()

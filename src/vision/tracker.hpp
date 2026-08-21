@@ -4,17 +4,18 @@
 #include <string>
 
 namespace rmcs_dart_guidance {
-class DartGuidanceTracker{
+class DartGuidanceTracker {
 public:
-    explicit DartGuidanceTracker(double min_contour_area = 20.0, double max_distance_threshold = 200.0)
+    explicit DartGuidanceTracker(
+        double min_contour_area = 20.0, double max_distance_threshold = 200.0)
         : tracking_flag_(false)
         , current_position_(-1, -1)
         , is_initialized_(false)
         , min_contour_area_(min_contour_area)
         , max_distance_threshold_(max_distance_threshold) {}
 
-    void Init(const cv::Point2i& initial_position) { 
-        current_position_ = initial_position; 
+    void Init(const cv::Point2i& initial_position) {
+        current_position_ = initial_position;
         is_initialized_ = true;
         tracking_count_ = 0;
         lost_count_ = 0;
@@ -36,10 +37,9 @@ public:
         std::vector<std::vector<cv::Point>> contours;
         cv::findContours(binary_image, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
 
-        double min_distance       = std::numeric_limits<double>::max();
+        double min_distance = std::numeric_limits<double>::max();
         cv::Point2i best_centroid = current_position_;
-        bool found_match          = false;
-        
+        bool found_match = false;
 
         for (const auto& contour : contours) {
             double area = cv::contourArea(contour);
@@ -53,21 +53,25 @@ public:
                 continue;
             }
 
-            cv::Point2f centroid(static_cast<float>(moments.m10 / moments.m00), static_cast<float>(moments.m01 / moments.m00));
+            cv::Point2f centroid(
+                static_cast<float>(moments.m10 / moments.m00),
+                static_cast<float>(moments.m01 / moments.m00));
 
             double distance = cv::norm(centroid - (cv::Point2f)current_position_);
 
             if (distance < min_distance) {
                 min_distance = distance;
                 best_centroid = centroid;
-                found_match   = true;
+                found_match = true;
             }
 
             valid_contours_++;
         }
 
         if (found_match && min_distance < max_distance_threshold_) {
-            current_position_ = cv::Point2i(static_cast<int>(std::round(best_centroid.x)), static_cast<int>(std::round(best_centroid.y)));
+            current_position_ = cv::Point2i(
+                static_cast<int>(std::round(best_centroid.x)),
+                static_cast<int>(std::round(best_centroid.y)));
             tracking_flag_ = true;
             tracking_count_++;
             lost_count_ = 0;
@@ -77,7 +81,8 @@ public:
         }
 
         last_process_time_ms_ = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                std::chrono::steady_clock::now() - start_time).count();
+                                    std::chrono::steady_clock::now() - start_time)
+                                    .count();
     }
 
     cv::Point2i get_current_position() const { return current_position_; }
@@ -87,8 +92,8 @@ public:
     std::string get_debug_info() const {
         std::string info = "Tracker: ";
         info += tracking_flag_ ? "Tracking" : "Lost";
-        info += ", Pos=(" + std::to_string(current_position_.x) + 
-               "," + std::to_string(current_position_.y) + ")";
+        info += ", Pos=(" + std::to_string(current_position_.x) + ","
+              + std::to_string(current_position_.y) + ")";
         info += ", Tracked=" + std::to_string(tracking_count_);
         info += ", Lost=" + std::to_string(lost_count_);
         info += ", ValidContours=" + std::to_string(valid_contours_);
@@ -111,4 +116,4 @@ private:
     int64_t last_process_time_ms_ = 0;
     std::chrono::steady_clock::time_point last_track_time_;
 };
-}  // namespace rmcs_dart_guidance
+} // namespace rmcs_dart_guidance

@@ -8,7 +8,6 @@
 #include <string>
 #include <vector>
 
-
 namespace rmcs_dart_guidance {
 
 using PointT = cv::Point2i;
@@ -23,13 +22,11 @@ struct TargetData {
 
 class DartGuidanceIdentifier {
 public:
-    DartGuidanceIdentifier() {
-        Init();
-    }
+    DartGuidanceIdentifier() { Init(); }
 
     void Init() {
         detect_frame_count_ = 0;
-        result_ready_       = false;
+        result_ready_ = false;
         possible_targets_collection_.clear();
         start_time_ = std::chrono::steady_clock::now();
     }
@@ -54,7 +51,7 @@ public:
             return;
         }
 
-        double highest_score           = -1.0;
+        double highest_score = -1.0;
         size_t most_possible_target_id = 0;
 
         if (possible_targets_collection_.empty()) {
@@ -66,14 +63,17 @@ public:
 
                 if (this_score > highest_score) {
                     most_possible_target_id = i;
-                    highest_score           = this_score;
+                    highest_score = this_score;
                 }
             }
-            target_initial_position_ = possible_targets_collection_[most_possible_target_id].latest_position;
-            result_ready_            = true;
+            target_initial_position_ =
+                possible_targets_collection_[most_possible_target_id].latest_position;
+            result_ready_ = true;
 
-            auto end_time_  = std::chrono::steady_clock::now();
-            auto delta_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time_ - frame_start_time).count();
+            auto end_time_ = std::chrono::steady_clock::now();
+            auto delta_time =
+                std::chrono::duration_cast<std::chrono::milliseconds>(end_time_ - frame_start_time)
+                    .count();
             last_process_time_ms_ = delta_time;
         }
     }
@@ -83,12 +83,12 @@ public:
     PointT get_result() { return target_initial_position_; }
 
     std::string get_debug_info() const {
-        std::string info = "Identifier: Frames=" + std::to_string(detect_frame_count_) +
-                          ", Targets=" + std::to_string(possible_targets_collection_.size()) +
-                          ", Result=" + (result_ready_ ? "Ready" : "Not Ready");
+        std::string info = "Identifier: Frames=" + std::to_string(detect_frame_count_)
+                         + ", Targets=" + std::to_string(possible_targets_collection_.size())
+                         + ", Result=" + (result_ready_ ? "Ready" : "Not Ready");
         if (result_ready_) {
-            info += ", Pos=(" + std::to_string(target_initial_position_.x) + 
-                   "," + std::to_string(target_initial_position_.y) + ")";
+            info += ", Pos=(" + std::to_string(target_initial_position_.x) + ","
+                  + std::to_string(target_initial_position_.y) + ")";
         }
         if (last_process_time_ms_ > 0) {
             info += ", Time=" + std::to_string(last_process_time_ms_) + "ms";
@@ -97,7 +97,6 @@ public:
     }
 
 private:
-
     cv::Mat display_image_;
     cv::Scalar lower_limit_, upper_limit_;
     cv::Scalar latest_lower_limit_, latest_upper_limit_;
@@ -105,14 +104,15 @@ private:
     int detect_frame_count_;
     PointT target_initial_position_;
     bool result_ready_;
-    
+
     std::chrono::steady_clock::time_point start_time_;
     int64_t last_process_time_ms_ = 0;
 
     static std::vector<PointT> process(const cv::Mat& binary_image) {
         std::vector<std::vector<cv::Point>> contours;
         std::vector<cv::Vec4i> hierarchy;
-        cv::findContours(binary_image, contours, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+        cv::findContours(
+            binary_image, contours, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
 
         std::vector<PointT> possible_targets;
         for (const auto& contour : contours) {
@@ -120,9 +120,9 @@ private:
 
             if (area < 64 || area > 5000)
                 continue;
-            if (contour.size() < 5) 
+            if (contour.size() < 5)
                 continue;
-            
+
             cv::Point2f circle_center;
             float circle_radius;
             cv::minEnclosingCircle(contour, circle_center, circle_radius);
@@ -142,12 +142,12 @@ private:
         const int distance_threshold = 10;
         std::vector<bool> matched(points.size(), false);
 
-        for (auto& collected: possible_targets_collection_) {
+        for (auto& collected : possible_targets_collection_) {
             double min_distance = std::numeric_limits<double>::max();
             int point_id = -1;
-            
+
             for (size_t i = 0; i < points.size(); ++i) {
-                if (matched[i]) 
+                if (matched[i])
                     continue;
 
                 const PointT& current_point(points[i]);
@@ -160,7 +160,8 @@ private:
 
             if (point_id != -1) {
                 double this_move_distance = cv::norm(collected.first_position - points[point_id]);
-                collected.max_move_distance = std::max(collected.max_move_distance, this_move_distance);
+                collected.max_move_distance =
+                    std::max(collected.max_move_distance, this_move_distance);
                 collected.latest_position = points[point_id];
                 collected.catch_count++;
                 collected.miss_count = 0;
@@ -179,12 +180,9 @@ private:
 
         possible_targets_collection_.erase(
             std::remove_if(
-                possible_targets_collection_.begin(),
-                possible_targets_collection_.end(),
-                [](const TargetData& target) { return target.miss_count >= 20; }
-            ),
-            possible_targets_collection_.end()
-        );
+                possible_targets_collection_.begin(), possible_targets_collection_.end(),
+                [](const TargetData& target) { return target.miss_count >= 20; }),
+            possible_targets_collection_.end());
     }
 };
-}
+} // namespace rmcs_dart_guidance
