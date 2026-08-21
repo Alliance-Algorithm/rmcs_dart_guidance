@@ -96,6 +96,11 @@ public:
             return;
         }
 
+        if (check_manual_chassis_level_trigger()) {
+            remember_switches(*switch_left_, *switch_right_);
+            return;
+        }
+
         const bool manual_mode = switch_left_.ready() && *switch_left_ == Switch::UP;
         if (manual_mode) {
             clear_external_pending_requests();
@@ -248,6 +253,39 @@ private:
         return false;
     }
 
+    bool check_manual_chassis_level_trigger() {
+        using namespace rmcs_msgs;
+
+        const bool condition =
+            switch_left_.ready() && switch_right_.ready() && rotary_knob_switch_.ready()
+            && *switch_left_ == Switch::UP && *switch_right_ == Switch::DOWN
+            && *rotary_knob_switch_ == Switch::DOWN;
+
+        const auto now = std::chrono::steady_clock::now();
+        if (!condition) {
+            chassis_level_hold_since_.reset();
+            chassis_level_hold_consumed_ = false;
+            return false;
+        }
+
+        if (!chassis_level_hold_since_) {
+            chassis_level_hold_since_ = now;
+            return false;
+        }
+
+        if (!chassis_level_hold_consumed_
+            && (now - *chassis_level_hold_since_) >= kChassisLevelHoldDuration) {
+            chassis_level_hold_consumed_ = true;
+            clear_external_pending_requests();
+            emit_command("dart-chassis-level");
+            RCLCPP_INFO(
+                logger_, "[RemoteCommandBridge] chassis level triggered by rotary hold");
+            return true;
+        }
+
+        return false;
+    }
+
     rclcpp::Logger logger_;
 
     InputInterface<rmcs_msgs::Switch> switch_left_;
@@ -270,8 +308,11 @@ private:
     bool referee_condition_was_true_{false};
     std::optional<std::chrono::steady_clock::time_point> rotary_up_since_;
     bool rotary_hold_consumed_{false};
+    std::optional<std::chrono::steady_clock::time_point> chassis_level_hold_since_;
+    bool chassis_level_hold_consumed_{false};
 
     static constexpr auto kRotaryTriggerHoldDuration = std::chrono::seconds{3};
+    static constexpr auto kChassisLevelHoldDuration = std::chrono::seconds{3};
 };
 
 } // namespace rmcs_dart_guidance::manager

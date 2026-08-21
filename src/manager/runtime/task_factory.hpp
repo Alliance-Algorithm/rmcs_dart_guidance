@@ -23,7 +23,7 @@ inline std::shared_ptr<Task> make_task(
     const std::string& cmd, MechanismResources& mechanism_resources,
     ManagerRuntimeState& runtime_state, const ManagerSettings& settings) {
     if (cmd == "dart-init" || cmd == "dart_init") {
-        return std::make_shared<DartInitTask>(mechanism_resources);
+        return std::make_shared<DartInitTask>(mechanism_resources, settings);
     }
     if (cmd == "dart-launch-prepare" || cmd == "dart_launch_prepare" || cmd == "launch_prepare"
         || cmd == "launch-prepare") {
